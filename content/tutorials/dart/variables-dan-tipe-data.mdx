@@ -1,0 +1,519 @@
+---
+title: Variabel dan Tipe Data
+description: Pelajari cara mendeklarasikan variabel dan mengenal tipe data dasar di Dart seperti int, double, String, bool, List, dan Map.
+---
+
+## Pengantar
+
+Variabel adalah tempat menyimpan data dalam program. Dart adalah bahasa yang **type-safe**, artinya setiap variabel memiliki tipe data yang jelas — baik dideklarasikan secara eksplisit maupun disimpulkan otomatis oleh compiler (type inference).
+
+Di halaman ini, Anda akan mempelajari cara mendeklarasikan variabel dan mengenal tipe data dasar yang sering digunakan di Dart.
+
+## Deklarasi Variabel
+
+Dart menyediakan beberapa cara untuk mendeklarasikan variabel:
+
+### Menggunakan `var`
+
+Keyword `var` membiarkan Dart menyimpulkan tipe data secara otomatis berdasarkan nilai awal yang diberikan.
+
+```dart
+void main() {
+  var nama = 'Budi';       // Dart menyimpulkan tipe String
+  var umur = 25;            // Dart menyimpulkan tipe int
+  var tinggi = 170.5;       // Dart menyimpulkan tipe double
+
+  print(nama);   // Budi
+  print(umur);   // 25
+  print(tinggi); // 170.5
+}
+```
+
+Setelah variabel `var` diberi nilai, tipenya tidak bisa berubah:
+
+```dart
+void main() {
+  var nama = 'Budi';
+  // nama = 123; // Error: A value of type 'int' can't be assigned to a variable of type 'String'.
+}
+```
+
+### Deklarasi dengan Tipe Eksplisit
+
+Anda juga bisa menuliskan tipe data secara langsung untuk kejelasan kode.
+
+```dart
+void main() {
+  String kota = 'Jakarta';
+  int populasi = 10000000;
+  double luas = 661.5;
+  bool ibukota = true;
+
+  print('$kota memiliki populasi $populasi jiwa');
+}
+```
+
+### `final` — Variabel yang Hanya Bisa Diisi Sekali
+
+Gunakan `final` untuk variabel yang nilainya ditetapkan sekali dan tidak berubah setelahnya. Nilai `final` bisa ditentukan saat runtime.
+
+```dart
+void main() {
+  final nama = 'Siti';
+  final DateTime sekarang = DateTime.now(); // Nilai ditentukan saat runtime
+
+  print(nama);
+  print(sekarang);
+
+  // nama = 'Andi'; // Error: The final variable 'nama' can only be set once.
+}
+```
+
+### `const` — Konstanta Compile-Time
+
+Gunakan `const` untuk nilai yang sudah diketahui saat compile-time dan tidak akan pernah berubah.
+
+```dart
+void main() {
+  const pi = 3.14159;
+  const String appName = 'Flutter Docs';
+  const int maxRetry = 3;
+
+  print('Nilai pi: $pi');
+  print('Aplikasi: $appName, max retry: $maxRetry');
+
+  // const waktu = DateTime.now(); // Error: DateTime.now() bukan compile-time constant
+}
+```
+
+### Perbedaan `var`, `final`, dan `const`
+
+| Keyword | Bisa diubah? | Kapan nilai ditentukan? | Contoh penggunaan |
+|---------|-------------|------------------------|-------------------|
+| `var` | Ya | Runtime | Variabel yang nilainya berubah-ubah |
+| `final` | Tidak | Runtime | Nilai dari API, input user, waktu saat ini |
+| `const` | Tidak | Compile-time | Nilai tetap seperti pi, nama aplikasi |
+
+## Tipe Data Numerik
+
+Dart memiliki tiga tipe numerik utama:
+
+### `int` — Bilangan Bulat
+
+```dart
+void main() {
+  int jumlahSiswa = 30;
+  int suhu = -5;
+  int tahun = 2024;
+
+  // Operasi aritmatika
+  int total = jumlahSiswa + 10;
+  int selisih = tahun - 2000;
+
+  print('Total siswa: $total');       // 40
+  print('Selisih tahun: $selisih');   // 24
+}
+```
+
+### `double` — Bilangan Desimal
+
+```dart
+void main() {
+  double harga = 49999.99;
+  double diskon = 0.15;
+  double suhu = -3.7;
+
+  double hargaAkhir = harga * (1 - diskon);
+  print('Harga setelah diskon: $hargaAkhir'); // 42499.9915
+}
+```
+
+### `num` — Tipe Induk Numerik
+
+`num` adalah superclass dari `int` dan `double`. Gunakan jika variabel bisa menampung keduanya.
+
+```dart
+void main() {
+  num nilai = 10;     // int
+  print(nilai);       // 10
+
+  nilai = 10.5;       // double — tetap valid
+  print(nilai);       // 10.5
+}
+```
+
+### Konversi Antar Tipe Numerik
+
+```dart
+void main() {
+  int bilBulat = 42;
+  double bilDesimal = 3.99;
+
+  // int ke double
+  double hasilDouble = bilBulat.toDouble();
+  print(hasilDouble); // 42.0
+
+  // double ke int (membuang desimal)
+  int hasilInt = bilDesimal.toInt();
+  print(hasilInt); // 3
+
+  // String ke angka
+  int dariString = int.parse('100');
+  double dariStringDesimal = double.parse('3.14');
+  print(dariString);        // 100
+  print(dariStringDesimal); // 3.14
+
+  // Angka ke String
+  String angkaStr = 42.toString();
+  String desimalStr = 3.14159.toStringAsFixed(2);
+  print(angkaStr);    // 42
+  print(desimalStr);  // 3.14
+}
+```
+
+## String
+
+String di Dart adalah urutan karakter yang diapit tanda kutip tunggal (`'...'`) atau ganda (`"..."`).
+
+### Deklarasi String
+
+```dart
+void main() {
+  String salam = 'Halo, Dart!';
+  String pesan = "Selamat belajar";
+
+  print(salam);
+  print(pesan);
+}
+```
+
+### String Interpolation
+
+Gunakan `$variabel` atau `${ekspresi}` untuk menyisipkan nilai ke dalam string.
+
+```dart
+void main() {
+  String nama = 'Andi';
+  int umur = 20;
+
+  // Interpolasi sederhana
+  print('Nama saya $nama');
+
+  // Interpolasi dengan ekspresi
+  print('Tahun depan umur saya ${umur + 1}');
+
+  // Gabungan
+  print('$nama berumur $umur tahun dan lahir tahun ${2024 - umur}');
+}
+```
+
+### Multiline String
+
+Gunakan triple quotes (`'''` atau `"""`) untuk string yang terdiri dari beberapa baris.
+
+```dart
+void main() {
+  String alamat = '''
+Jl. Merdeka No. 17
+Kelurahan Menteng
+Jakarta Pusat 10310
+''';
+
+  print(alamat);
+
+  String json = """
+{
+  "nama": "Dart",
+  "versi": "3.0"
+}
+""";
+
+  print(json);
+}
+```
+
+### Method String yang Sering Digunakan
+
+```dart
+void main() {
+  String teks = '  Halo Dunia  ';
+
+  print(teks.trim());            // 'Halo Dunia'
+  print(teks.trim().toUpperCase()); // 'HALO DUNIA'
+  print(teks.trim().toLowerCase()); // 'halo dunia'
+  print(teks.trim().contains('Dunia')); // true
+  print(teks.trim().replaceAll('Dunia', 'Dart')); // 'Halo Dart'
+  print(teks.trim().split(' ')); // [Halo, Dunia]
+  print(teks.trim().length);     // 10
+}
+```
+
+## Boolean
+
+Tipe `bool` hanya memiliki dua nilai: `true` dan `false`. Digunakan untuk logika kondisional.
+
+```dart
+void main() {
+  bool sudahLogin = true;
+  bool adalahAdmin = false;
+
+  print(sudahLogin);  // true
+  print(adalahAdmin); // false
+
+  // Operator logika
+  print(sudahLogin && adalahAdmin);  // false (AND)
+  print(sudahLogin || adalahAdmin);  // true  (OR)
+  print(!adalahAdmin);               // true  (NOT)
+
+  // Perbandingan menghasilkan bool
+  int umur = 18;
+  bool bolehMasuk = umur >= 17;
+  print('Boleh masuk: $bolehMasuk'); // true
+}
+```
+
+## List
+
+`List` adalah koleksi berurutan (ordered) yang bisa berisi elemen duplikat. Mirip dengan array di bahasa lain.
+
+### Membuat List
+
+```dart
+void main() {
+  // List dengan tipe eksplisit
+  List<String> buah = ['Apel', 'Mangga', 'Jeruk'];
+
+  // List menggunakan var (tipe disimpulkan)
+  var angka = [1, 2, 3, 4, 5];
+
+  // List kosong — tipe harus dideklarasikan
+  List<int> nilaiUjian = [];
+  var daftarNama = <String>[];
+
+  print(buah);       // [Apel, Mangga, Jeruk]
+  print(angka);      // [1, 2, 3, 4, 5]
+  print(nilaiUjian); // []
+}
+```
+
+### Mengakses dan Memodifikasi List
+
+```dart
+void main() {
+  var buah = ['Apel', 'Mangga', 'Jeruk'];
+
+  // Akses elemen (index dimulai dari 0)
+  print(buah[0]);       // Apel
+  print(buah.first);    // Apel
+  print(buah.last);     // Jeruk
+  print(buah.length);   // 3
+
+  // Menambah elemen
+  buah.add('Pisang');
+  print(buah); // [Apel, Mangga, Jeruk, Pisang]
+
+  // Menambah beberapa elemen sekaligus
+  buah.addAll(['Anggur', 'Semangka']);
+  print(buah); // [Apel, Mangga, Jeruk, Pisang, Anggur, Semangka]
+
+  // Mengubah elemen
+  buah[1] = 'Durian';
+  print(buah); // [Apel, Durian, Jeruk, Pisang, Anggur, Semangka]
+
+  // Menghapus elemen
+  buah.remove('Jeruk');
+  print(buah); // [Apel, Durian, Pisang, Anggur, Semangka]
+
+  buah.removeAt(0);
+  print(buah); // [Durian, Pisang, Anggur, Semangka]
+}
+```
+
+### Method List yang Berguna
+
+```dart
+void main() {
+  var angka = [3, 1, 4, 1, 5, 9, 2, 6];
+
+  // Cek keberadaan elemen
+  print(angka.contains(5));  // true
+  print(angka.indexOf(4));   // 2
+
+  // Sorting
+  angka.sort();
+  print(angka); // [1, 1, 2, 3, 4, 5, 6, 9]
+
+  // Iterasi dengan map
+  var kaliDua = angka.map((n) => n * 2).toList();
+  print(kaliDua); // [2, 2, 4, 6, 8, 10, 12, 18]
+
+  // Filter dengan where
+  var genap = angka.where((n) => n % 2 == 0).toList();
+  print(genap); // [2, 4, 6]
+
+  // Cek kondisi
+  print(angka.every((n) => n > 0));  // true — semua positif
+  print(angka.any((n) => n > 8));    // true — ada yang > 8
+}
+```
+
+### List dengan `const` dan Spread Operator
+
+```dart
+void main() {
+  // Const list — tidak bisa dimodifikasi
+  const warna = ['Merah', 'Hijau', 'Biru'];
+  // warna.add('Kuning'); // Error: Unsupported operation
+
+  // Spread operator
+  var warnaUtama = ['Merah', 'Kuning', 'Biru'];
+  var semuaWarna = ['Putih', ...warnaUtama, 'Hitam'];
+  print(semuaWarna); // [Putih, Merah, Kuning, Biru, Hitam]
+}
+```
+
+## Map
+
+`Map` adalah koleksi pasangan key-value. Setiap key bersifat unik.
+
+### Membuat Map
+
+```dart
+void main() {
+  // Map dengan tipe eksplisit
+  Map<String, int> umurSiswa = {
+    'Andi': 20,
+    'Budi': 21,
+    'Citra': 19,
+  };
+
+  // Map menggunakan var
+  var ibukota = {
+    'Indonesia': 'Jakarta',
+    'Jepang': 'Tokyo',
+    'Korea': 'Seoul',
+  };
+
+  // Map kosong
+  Map<String, dynamic> config = {};
+  var skor = <String, int>{};
+
+  print(umurSiswa);  // {Andi: 20, Budi: 21, Citra: 19}
+  print(ibukota);    // {Indonesia: Jakarta, Jepang: Tokyo, Korea: Seoul}
+}
+```
+
+### Mengakses dan Memodifikasi Map
+
+```dart
+void main() {
+  var ibukota = {
+    'Indonesia': 'Jakarta',
+    'Jepang': 'Tokyo',
+    'Korea': 'Seoul',
+  };
+
+  // Akses nilai
+  print(ibukota['Indonesia']); // Jakarta
+  print(ibukota['Prancis']);   // null (key tidak ada)
+
+  // Menambah atau mengubah entry
+  ibukota['Prancis'] = 'Paris';
+  ibukota['Indonesia'] = 'Nusantara'; // Update nilai
+  print(ibukota);
+
+  // Menghapus entry
+  ibukota.remove('Korea');
+  print(ibukota); // {Indonesia: Nusantara, Jepang: Tokyo, Prancis: Paris}
+
+  // Cek keberadaan key atau value
+  print(ibukota.containsKey('Jepang'));    // true
+  print(ibukota.containsValue('London')); // false
+}
+```
+
+### Method Map yang Berguna
+
+```dart
+void main() {
+  var skor = {
+    'Andi': 85,
+    'Budi': 92,
+    'Citra': 78,
+    'Dina': 95,
+  };
+
+  // Properti dasar
+  print(skor.length);  // 4
+  print(skor.keys);    // (Andi, Budi, Citra, Dina)
+  print(skor.values);  // (85, 92, 78, 95)
+
+  // Iterasi
+  skor.forEach((nama, nilai) {
+    print('$nama mendapat nilai $nilai');
+  });
+
+  // Map entries
+  var skorString = skor.map((key, value) {
+    return MapEntry(key, value >= 80 ? 'Lulus' : 'Remedial');
+  });
+  print(skorString); // {Andi: Lulus, Budi: Lulus, Citra: Remedial, Dina: Lulus}
+
+  // putIfAbsent — tambah hanya jika key belum ada
+  skor.putIfAbsent('Eka', () => 88);
+  print(skor); // {Andi: 85, Budi: 92, Citra: 78, Dina: 95, Eka: 88}
+}
+```
+
+## Type Inference
+
+Dart memiliki kemampuan **type inference** yang kuat. Compiler dapat menyimpulkan tipe variabel dari nilai yang diberikan, sehingga Anda tidak selalu perlu menuliskan tipe secara eksplisit.
+
+```dart
+void main() {
+  // Dart menyimpulkan tipe secara otomatis
+  var pesan = 'Halo';          // String
+  var jumlah = 42;             // int
+  var rata = 85.5;             // double
+  var aktif = true;            // bool
+  var daftar = [1, 2, 3];     // List<int>
+  var peta = {'a': 1, 'b': 2}; // Map<String, int>
+
+  // Tipe eksplisit tetap berguna untuk kejelasan
+  // terutama saat variabel belum langsung diberi nilai
+  String nama;
+  nama = 'Dart';
+  print(nama);
+
+  // dynamic — tipe bisa berubah (hindari jika tidak perlu)
+  dynamic fleksibel = 'teks';
+  print(fleksibel.runtimeType); // String
+
+  fleksibel = 123;
+  print(fleksibel.runtimeType); // int
+}
+```
+
+### Kapan Menggunakan Tipe Eksplisit vs `var`
+
+Berikut panduan umum:
+
+- Gunakan `var` untuk variabel lokal yang langsung diberi nilai — tipe sudah jelas dari konteksnya.
+- Gunakan tipe eksplisit untuk parameter fungsi, return type, dan variabel yang dideklarasikan tanpa nilai awal.
+- Hindari `dynamic` kecuali benar-benar diperlukan (misalnya saat bekerja dengan data JSON yang strukturnya tidak pasti).
+
+## Ringkasan
+
+| Tipe Data | Deskripsi | Contoh |
+|-----------|-----------|--------|
+| `int` | Bilangan bulat | `42`, `-7`, `0` |
+| `double` | Bilangan desimal | `3.14`, `-0.5` |
+| `num` | Bilangan (int atau double) | `10`, `10.5` |
+| `String` | Teks | `'Halo'`, `"Dart"` |
+| `bool` | Boolean | `true`, `false` |
+| `List` | Koleksi berurutan | `[1, 2, 3]` |
+| `Map` | Pasangan key-value | `{'a': 1}` |
+
+Konsep variabel dan tipe data adalah fondasi penting dalam pemrograman Dart. Dengan memahami perbedaan `var`, `final`, dan `const`, serta mengenal tipe data yang tersedia, Anda siap melanjutkan ke topik berikutnya.
+
+Lanjutkan ke halaman [Fungsi](/docs/tutorials/dart/fungsi) untuk mempelajari cara membuat dan menggunakan fungsi di Dart.

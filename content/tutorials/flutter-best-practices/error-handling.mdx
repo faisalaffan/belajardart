@@ -1,0 +1,532 @@
+---
+title: Error Handling
+description: Pelajari teknik error handling di Flutter dan Dart — mulai dari try-catch-finally, custom exceptions, error handling di async code, Flutter error boundaries, hingga pattern menampilkan error ke pengguna secara elegan.
+---
+
+## Mengapa Error Handling Penting?
+
+Tidak ada aplikasi yang sempurna. Koneksi internet bisa putus, server bisa mengembalikan respons yang tidak terduga, dan pengguna bisa melakukan hal-hal yang tidak Anda antisipasi. Tanpa error handling yang baik, aplikasi Anda akan crash — dan pengguna akan langsung uninstall.
+
+Error handling yang baik memastikan:
+
+- Aplikasi **tidak crash** saat terjadi kesalahan
+- Pengguna mendapat **informasi yang jelas** tentang apa yang salah
+- Developer mendapat **log yang berguna** untuk debugging
+- Aplikasi bisa **pulih** dari error dan melanjutkan operasi
+
+## Try-Catch-Finally di Dart
+
+Dart menggunakan mekanisme `try-catch-finally` yang familiar untuk menangani exceptions. Blok `try` berisi kode yang mungkin gagal, `catch` menangkap error, dan `finally` selalu dijalankan — baik terjadi error maupun tidak.
+
+```dart
+// Struktur dasar try-catch-finally
+void basicExample() {
+  try {
+    // Kode yang mungkin melempar exception
+    final result = 100 ~/ 0; // IntegerDivisionByZeroException
+    print(result);
+  } on IntegerDivisionByZeroException {
+    // Menangkap exception spesifik
+    print('Tidak bisa membagi dengan nol');
+  } catch (e, stackTrace) {
+    // Menangkap semua exception lainnya
+    print('Error: $e');
+    print('Stack trace: $stackTrace');
+  } finally {
+    // Selalu dijalankan, cocok untuk cleanup
+    print('Operasi selesai');
+  }
+}
+```
+
+### Menangkap Exception Spesifik
+
+Anda bisa menangkap beberapa tipe exception secara terpisah menggunakan keyword `on`. Ini memungkinkan penanganan yang berbeda untuk setiap jenis error.
+
+```dart
+Future<String> fetchUserData(String userId) async {
+  try {
+    final response = await http.get(
+      Uri.parse('https://api.example.com/users/$userId'),
+    );
+
+    if (response.statusCode == 404) {
+      throw NotFoundException('User $userId tidak ditemukan');
+    }
+    if (response.statusCode != 200) {
+      throw ServerException('Server error: ${response.statusCode}');
+    }
+
+    return response.body;
+  } on SocketException {
+    // Tidak ada koneksi internet
+    throw NetworkException('Tidak ada koneksi internet');
+  } on TimeoutException {
+    // Request timeout
+    throw NetworkException('Request timeout, coba lagi nanti');
+  } on FormatException catch (e) {
+    // Response tidak valid
+    throw DataException('Format data tidak valid: ${e.message}');
+  }
+}
+```
+
+## Custom Exceptions
+
+Dart memungkinkan Anda membuat exception sendiri dengan mengimplementasikan interface `Exception`. Custom exceptions membuat kode lebih ekspresif dan error handling lebih terstruktur.
+
+```dart
+// Base exception untuk aplikasi
+sealed class AppException implements Exception {
+  final String message;
+  final String? code;
+
+  const AppException(this.message, {this.code});
+
+  @override
+  String toString() => 'AppException($code): $message';
+}
+
+// Exception spesifik untuk berbagai skenario
+class NetworkException extends AppException {
+  const NetworkException(super.message, {super.code = 'NETWORK_ERROR'});
+}
+
+class NotFoundException extends AppException {
+  const NotFoundException(super.message, {super.code = 'NOT_FOUND'});
+}
+
+class ServerException extends AppException {
+  const ServerException(super.message, {super.code = 'SERVER_ERROR'});
+}
+
+class ValidationException extends AppException {
+  final Map<String, String> fieldErrors;
+
+  const ValidationException(
+    super.message, {
+    super.code = 'VALIDATION_ERROR',
+    this.fieldErrors = const {},
+  });
+}
+
+class DataException extends AppException {
+  const DataException(super.message, {super.code = 'DATA_ERROR'});
+}
+```
+
+Dengan `sealed class`, Dart bisa memastikan Anda menangani **semua** tipe exception di `switch` statement — compiler akan memberi warning jika ada yang terlewat.
+
+```dart
+// Exhaustive handling berkat sealed class
+String getErrorMessage(AppException exception) {
+  return switch (exception) {
+    NetworkException() => 'Periksa koneksi internet Anda',
+    NotFoundException() => exception.message,
+    ServerException() => 'Terjadi masalah pada server, coba lagi nanti',
+    ValidationException(:final fieldErrors) =>
+      'Data tidak valid: ${fieldErrors.values.join(", ")}',
+    DataException() => 'Data yang diterima tidak sesuai format',
+  };
+}
+```
+
+## Error Handling di Async Code
+
+Sebagian besar operasi di Flutter bersifat asynchronous — network requests, database queries, file I/O. Error handling di async code memerlukan perhatian khusus.
+
+### Async/Await dengan Try-Catch
+
+Pattern paling umum dan mudah dibaca untuk menangani error di async code:
+
+```dart
+class UserRepository {
+  final http.Client _client;
+
+  UserRepository(this._client);
+
+  Future<User> getUser(String id) async {
+    try {
+      final response = await _client
+          .get(Uri.parse('https://api.example.com/users/$id'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return User.fromJson(jsonDecode(response.body));
+      } else if (response.statusCode == 404) {
+        throw NotFoundException('User dengan ID $id tidak ditemukan');
+      } else {
+        throw ServerException(
+          'Gagal mengambil data user',
+          code: 'HTTP_${response.statusCode}',
+        );
+      }
+    } on TimeoutException {
+      throw NetworkException('Request timeout setelah 10 detik');
+    } on SocketException {
+      throw NetworkException('Tidak dapat terhubung ke server');
+    }
+  }
+}
+```
+
+### Future Error Handling dengan catchError
+
+Alternatif lain adalah menggunakan method `catchError` pada `Future`. Pendekatan ini berguna saat Anda ingin menangani error secara inline tanpa blok try-catch.
+
+```dart
+// Menggunakan catchError pada Future
+void loadData() {
+  fetchProducts()
+      .then((products) {
+        // Proses data
+        updateUI(products);
+      })
+      .catchError((error) {
+        if (error is NetworkException) {
+          showOfflineMessage();
+        } else {
+          showGenericError(error.toString());
+        }
+      });
+}
+```
+
+### Stream Error Handling
+
+Stream juga bisa menghasilkan error. Gunakan `handleError` atau `onError` callback di `listen`.
+
+```dart
+// Menangani error di Stream
+class ChatService {
+  Stream<Message> getMessages(String roomId) {
+    return _firestore
+        .collection('rooms/$roomId/messages')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => Message.fromFirestore(doc))
+              .toList();
+        })
+        .handleError((error) {
+          // Transform error menjadi exception yang lebih bermakna
+          if (error is FirebaseException) {
+            throw DataException('Gagal memuat pesan: ${error.message}');
+          }
+          throw error;
+        });
+  }
+}
+
+// Menangani error saat listen
+void listenToMessages() {
+  chatService.getMessages('room-123').listen(
+    (messages) {
+      // Update UI dengan pesan baru
+      updateMessageList(messages);
+    },
+    onError: (error) {
+      // Tangani error stream
+      showErrorSnackBar('Koneksi chat terputus');
+    },
+    cancelOnError: false, // Jangan cancel subscription saat error
+  );
+}
+```
+
+## Flutter Error Boundaries
+
+Flutter menyediakan mekanisme untuk menangkap error yang terjadi selama rendering widget dan error yang tidak tertangkap di zone lain.
+
+### FlutterError.onError — Menangkap Error Rendering
+
+`FlutterError.onError` menangkap error yang terjadi di framework Flutter, misalnya saat `build()` method gagal atau layout overflow.
+
+```dart
+void main() {
+  // Tangkap error framework Flutter
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // Log error ke console (default behavior)
+    FlutterError.presentError(details);
+
+    // Kirim ke crash reporting service
+    CrashReporter.reportFlutterError(details);
+  };
+
+  runApp(const MyApp());
+}
+```
+
+### PlatformDispatcher.onError — Menangkap Error Async
+
+Untuk menangkap error yang terjadi di luar framework Flutter (misalnya di Future atau Isolate), gunakan `PlatformDispatcher.instance.onError`.
+
+```dart
+void main() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    CrashReporter.reportFlutterError(details);
+  };
+
+  // Tangkap error async yang tidak tertangkap
+  PlatformDispatcher.instance.onError = (error, stack) {
+    CrashReporter.reportError(error, stack);
+    return true; // true = error sudah ditangani
+  };
+
+  runApp(const MyApp());
+}
+```
+
+### Custom ErrorWidget — Tampilan Error yang Ramah
+
+Secara default, Flutter menampilkan layar merah (red screen of death) saat terjadi error rendering di debug mode. Anda bisa menggantinya dengan widget kustom yang lebih ramah pengguna.
+
+```dart
+void main() {
+  // Ganti tampilan error default dengan widget kustom
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Terjadi Kesalahan',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                details.exceptionAsString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
+  runApp(const MyApp());
+}
+```
+
+## Result Type Pattern
+
+Daripada melempar exception, Anda bisa menggunakan **Result type** — sebuah pattern yang mengembalikan objek yang merepresentasikan sukses atau gagal. Pattern ini membuat error handling lebih eksplisit dan menghindari exception yang tidak tertangkap.
+
+```dart
+// Definisi Result type menggunakan sealed class
+sealed class Result<T> {
+  const Result();
+}
+
+class Success<T> extends Result<T> {
+  final T data;
+  const Success(this.data);
+}
+
+class Failure<T> extends Result<T> {
+  final AppException error;
+  const Failure(this.error);
+}
+```
+
+```dart
+// Repository yang mengembalikan Result, bukan melempar exception
+class ProductRepository {
+  final http.Client _client;
+
+  ProductRepository(this._client);
+
+  Future<Result<List<Product>>> getProducts() async {
+    try {
+      final response = await _client
+          .get(Uri.parse('https://api.example.com/products'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> json = jsonDecode(response.body);
+        final products = json.map((j) => Product.fromJson(j)).toList();
+        return Success(products);
+      }
+
+      return Failure(
+        ServerException('HTTP ${response.statusCode}'),
+      );
+    } on SocketException {
+      return Failure(
+        NetworkException('Tidak ada koneksi internet'),
+      );
+    } on TimeoutException {
+      return Failure(
+        NetworkException('Request timeout'),
+      );
+    } catch (e) {
+      return Failure(
+        DataException('Error tidak terduga: $e'),
+      );
+    }
+  }
+}
+
+// Penggunaan — exhaustive pattern matching
+class ProductListPage extends StatelessWidget {
+  final ProductRepository repository;
+
+  const ProductListPage({super.key, required this.repository});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Result<List<Product>>>(
+      future: repository.getProducts(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return switch (snapshot.data!) {
+          Success(:final data) => ListView.builder(
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                return ProductCard(product: data[index]);
+              },
+            ),
+          Failure(:final error) => ErrorView(
+              message: getErrorMessage(error),
+              onRetry: () {
+                // Trigger rebuild
+              },
+            ),
+        };
+      },
+    );
+  }
+}
+```
+
+Keuntungan Result type dibanding exception:
+
+- **Eksplisit** — caller tahu bahwa fungsi bisa gagal dari return type-nya
+- **Exhaustive** — compiler memastikan Anda menangani kedua kasus (sukses dan gagal)
+- **Tidak ada surprise** — tidak ada exception yang tiba-tiba muncul di runtime
+
+## Menampilkan Error ke Pengguna
+
+Error yang sudah ditangkap perlu dikomunikasikan ke pengguna dengan cara yang jelas dan tidak menakutkan. Berikut beberapa pattern umum.
+
+### SnackBar untuk Error Ringan
+
+Gunakan `SnackBar` untuk error yang tidak menghalangi pengguna melanjutkan aktivitas, misalnya gagal menyimpan ke favorit atau gagal memuat data tambahan.
+
+```dart
+void showErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message)),
+        ],
+      ),
+      backgroundColor: Colors.red.shade700,
+      behavior: SnackBarBehavior.floating,
+      action: SnackBarAction(
+        label: 'Coba Lagi',
+        textColor: Colors.white,
+        onPressed: () {
+          // Retry action
+        },
+      ),
+    ),
+  );
+}
+```
+
+### Error Page untuk Kegagalan Total
+
+Ketika seluruh halaman gagal dimuat, tampilkan halaman error penuh dengan opsi retry.
+
+```dart
+class ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+  final IconData icon;
+
+  const ErrorView({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.icon = Icons.cloud_off,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 24),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba Lagi'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## Ringkasan Best Practices
+
+- Gunakan `try-catch` dengan tipe exception spesifik — hindari `catch (e)` yang terlalu umum
+- Buat **custom exceptions** dengan `sealed class` untuk exhaustive handling
+- Di async code, selalu tangani error — jangan biarkan Future gagal tanpa penanganan
+- Setup `FlutterError.onError` dan `PlatformDispatcher.instance.onError` di `main()` untuk menangkap error global
+- Ganti `ErrorWidget.builder` agar pengguna tidak melihat red screen of death
+- Pertimbangkan **Result type pattern** untuk membuat error handling lebih eksplisit
+- Tampilkan error ke pengguna dengan cara yang ramah — `SnackBar` untuk error ringan, error page untuk kegagalan total
+- Selalu sertakan opsi **retry** agar pengguna bisa mencoba lagi
+- Log error ke crash reporting service (Firebase Crashlytics, Sentry) untuk monitoring di production
+
+---
+
+## Penutup Seri Flutter Best Practices
+
+Selamat! Anda telah menyelesaikan seluruh seri **Flutter Best Practices**. Mari kita rekap apa yang sudah dipelajari:
+
+1. **[State Management](/docs/tutorials/flutter-best-practices/state-management)** — Memilih dan mengimplementasikan solusi state management yang tepat, dari `setState` hingga Riverpod dan BLoC
+2. **[Project Structure](/docs/tutorials/flutter-best-practices/project-structure)** — Mengorganisir kode Flutter dalam struktur yang scalable dan mudah di-maintain
+3. **[Widget Composition](/docs/tutorials/flutter-best-practices/widget-composition)** — Membangun UI modular dengan prinsip composition over inheritance, reusable widgets, dan builder patterns
+4. **[Performance Optimization](/docs/tutorials/flutter-best-practices/performance-optimization)** — Mengoptimasi performa dengan const constructors, lazy loading, dan profiling dengan DevTools
+5. **[Error Handling](/docs/tutorials/flutter-best-practices/error-handling)** — Menangani error secara elegan dengan custom exceptions, Result type, dan error boundaries
+
+Dengan menguasai kelima topik ini, Anda memiliki fondasi yang kuat untuk membangun aplikasi Flutter yang **berkualitas tinggi, performant, dan mudah di-maintain**. Terus praktikkan best practices ini di setiap proyek Anda, dan jangan ragu untuk kembali ke seri ini sebagai referensi.
+
+Selamat coding! 🚀

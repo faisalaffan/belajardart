@@ -1,0 +1,5 @@
+{
+  "title": "Flutter Best Practices",
+  "defaultOpen": true,
+  "pages": ["index", "state-management", "project-structure", "widget-composition", "performance-optimization", "error-handling"]
+}

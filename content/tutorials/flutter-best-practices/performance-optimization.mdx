@@ -1,0 +1,297 @@
+---
+title: Performance Optimization
+description: Pelajari teknik optimasi performa di Flutter — mulai dari penggunaan const constructors, menghindari rebuild yang tidak perlu, lazy loading dengan ListView.builder, hingga tips build optimization dan profiling dengan DevTools.
+---
+
+## Mengapa Performa Penting?
+
+Aplikasi Flutter berjalan di 60fps (atau 120fps di perangkat tertentu). Artinya, setiap frame hanya punya waktu sekitar **16ms** untuk di-render. Jika widget tree Anda terlalu berat atau terjadi rebuild yang tidak perlu, frame akan terlewat dan pengguna merasakan **jank** — animasi yang patah-patah dan scroll yang tidak mulus.
+
+Kabar baiknya, Flutter sudah sangat cepat secara default. Optimasi performa biasanya hanya diperlukan ketika Anda mulai melihat masalah nyata. Prinsip utamanya: **ukur dulu, optimasi kemudian**.
+
+## Const Constructors
+
+`const` constructor adalah salah satu optimasi paling sederhana dan efektif di Flutter. Widget yang dibuat dengan `const` hanya di-instantiate **sekali** dan di-reuse di setiap rebuild — Flutter tidak perlu membuat objek baru.
+
+```dart
+// ❌ Tanpa const — objek baru dibuat setiap kali build() dipanggil
+class MyWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(height: 16),           // Objek baru setiap rebuild
+        Text('Hello'),                   // Objek baru setiap rebuild
+        Icon(Icons.star, size: 24),      // Objek baru setiap rebuild
+      ],
+    );
+  }
+}
+
+// ✅ Dengan const — objek di-reuse, rebuild lebih cepat
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        SizedBox(height: 16),           // Di-reuse
+        Text('Hello'),                   // Di-reuse
+        Icon(Icons.star, size: 24),      // Di-reuse
+      ],
+    );
+  }
+}
+```
+
+### Tips Penggunaan Const
+
+- Tambahkan `const` pada constructor widget Anda sendiri jika semua field-nya final
+- Gunakan `const` pada widget literal yang nilainya tidak berubah
+- Aktifkan lint rule `prefer_const_constructors` di `analysis_options.yaml`
+
+## Menghindari Rebuild yang Tidak Perlu
+
+Setiap kali `setState()` dipanggil, seluruh subtree widget akan di-rebuild. Jika widget tree Anda besar, ini bisa mahal. Ada beberapa teknik untuk meminimalkan rebuild.
+
+### Pecah Widget Menjadi Komponen Kecil
+
+Dengan memecah widget, hanya bagian yang benar-benar berubah yang di-rebuild.
+
+```dart
+// ❌ Seluruh halaman di-rebuild saat counter berubah
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _count = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter')),
+      // Header, body, dan footer semua di-rebuild
+      body: Column(
+        children: [
+          const HeaderSection(),       // Tidak berubah, tapi tetap di-rebuild
+          Text('Count: $_count'),      // Ini yang berubah
+          const FooterSection(),       // Tidak berubah, tapi tetap di-rebuild
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => setState(() => _count++),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+```dart
+// ✅ Pisahkan bagian yang berubah ke widget sendiri
+class CounterPage extends StatelessWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter')),
+      body: const Column(
+        children: [
+          HeaderSection(),
+          CounterDisplay(),   // Hanya widget ini yang di-rebuild
+          FooterSection(),
+        ],
+      ),
+    );
+  }
+}
+
+class CounterDisplay extends StatefulWidget {
+  const CounterDisplay({super.key});
+
+  @override
+  State<CounterDisplay> createState() => _CounterDisplayState();
+}
+
+class _CounterDisplayState extends State<CounterDisplay> {
+  int _count = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('Count: $_count'),
+        IconButton(
+          onPressed: () => setState(() => _count++),
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    );
+  }
+}
+```
+
+### RepaintBoundary
+
+`RepaintBoundary` membuat layer terpisah sehingga widget di dalamnya tidak menyebabkan repaint pada widget di luarnya (dan sebaliknya). Berguna untuk animasi atau widget yang sering berubah.
+
+```dart
+class AnimatedDashboard extends StatelessWidget {
+  const AnimatedDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const StaticHeader(),
+        // Animasi di dalam RepaintBoundary tidak mempengaruhi
+        // widget lain di luar boundary
+        RepaintBoundary(
+          child: AnimatedChart(data: chartData),
+        ),
+        const StaticFooter(),
+      ],
+    );
+  }
+}
+```
+
+> **Catatan:** Jangan gunakan `RepaintBoundary` secara berlebihan. Setiap boundary membuat layer baru yang mengonsumsi memori. Gunakan hanya pada widget yang benar-benar sering di-repaint.
+
+## Lazy Loading dengan ListView.builder
+
+Untuk menampilkan list panjang, selalu gunakan `ListView.builder` daripada `ListView` biasa. `ListView.builder` hanya membuat widget yang terlihat di layar (lazy), sedangkan `ListView` membuat **semua** widget sekaligus.
+
+```dart
+// ❌ ListView biasa — semua 10.000 item dibuat sekaligus di memori
+Widget buildList(List<Product> products) {
+  return ListView(
+    children: products.map((p) => ProductCard(product: p)).toList(),
+  );
+}
+
+// ✅ ListView.builder — hanya item yang terlihat yang dibuat
+Widget buildList(List<Product> products) {
+  return ListView.builder(
+    itemCount: products.length,
+    itemBuilder: (context, index) {
+      return ProductCard(product: products[index]);
+    },
+  );
+}
+```
+
+Hal yang sama berlaku untuk `GridView.builder`, `SliverList.builder`, dan `PageView.builder`.
+
+### Gunakan itemExtent untuk Performa Scroll
+
+Jika setiap item memiliki tinggi yang sama, berikan `itemExtent`. Ini membantu Flutter menghitung posisi scroll tanpa harus mengukur setiap item.
+
+```dart
+ListView.builder(
+  itemCount: items.length,
+  itemExtent: 72.0, // Tinggi tetap per item
+  itemBuilder: (context, index) {
+    return ListTile(
+      title: Text(items[index].name),
+      subtitle: Text(items[index].description),
+    );
+  },
+)
+```
+
+## Optimasi Gambar
+
+Gambar adalah salah satu penyebab utama masalah performa dan memori. Beberapa tips penting:
+
+```dart
+// ✅ Gunakan cacheWidth/cacheHeight untuk resize gambar di memori
+Image.network(
+  'https://example.com/large-photo.jpg',
+  cacheWidth: 300,  // Resize ke 300px di memori
+  cacheHeight: 300,
+  fit: BoxFit.cover,
+)
+
+// ✅ Gunakan FadeInImage untuk loading yang smooth
+FadeInImage.assetNetwork(
+  placeholder: 'assets/placeholder.png',
+  image: 'https://example.com/photo.jpg',
+  fit: BoxFit.cover,
+  fadeInDuration: const Duration(milliseconds: 300),
+)
+```
+
+**Tips tambahan:**
+- Gunakan package `cached_network_image` untuk caching otomatis
+- Kompres gambar sebelum upload (gunakan format WebP jika memungkinkan)
+- Hindari memuat gambar beresolusi tinggi jika hanya ditampilkan dalam ukuran kecil
+
+## Build Optimization Tips
+
+Beberapa tips tambahan untuk menjaga performa aplikasi Flutter Anda:
+
+| Tips | Penjelasan |
+|------|------------|
+| Hindari `Opacity` widget | Gunakan `color.withValues(alpha: 0.5)` pada widget yang mendukungnya |
+| Gunakan `const` di mana pun bisa | Mengurangi alokasi objek saat rebuild |
+| Hindari `saveLayer` implisit | Widget seperti `Opacity`, `ShaderMask`, `ColorFilter` memicu `saveLayer` yang mahal |
+| Batasi kedalaman widget tree | Widget tree yang terlalu dalam memperlambat layout pass |
+| Gunakan `AnimatedBuilder` | Lebih efisien daripada `setState` untuk animasi karena hanya rebuild subtree tertentu |
+
+```dart
+// ❌ Opacity widget — memicu saveLayer yang mahal
+Opacity(
+  opacity: 0.5,
+  child: Container(color: Colors.blue, width: 100, height: 100),
+)
+
+// ✅ Gunakan warna dengan alpha langsung
+Container(
+  color: Colors.blue.withValues(alpha: 0.5),
+  width: 100,
+  height: 100,
+)
+```
+
+## Profiling dengan DevTools
+
+Flutter DevTools menyediakan tools untuk menganalisis performa aplikasi Anda:
+
+1. **Performance Overlay** — Jalankan `flutter run --profile` dan aktifkan performance overlay untuk melihat frame rendering time
+2. **Widget Rebuild Tracker** — Gunakan tab "Flutter Inspector" di DevTools untuk melihat widget mana yang sering di-rebuild
+3. **Memory Tab** — Monitor penggunaan memori dan deteksi memory leaks
+4. **Timeline View** — Analisis frame-by-frame untuk menemukan bottleneck
+
+```bash
+# Jalankan dalam profile mode untuk pengukuran performa yang akurat
+flutter run --profile
+
+# Buka DevTools
+flutter pub global activate devtools
+dart devtools
+```
+
+> **Penting:** Selalu profiling dalam **profile mode**, bukan debug mode. Debug mode jauh lebih lambat karena assertions dan debug checks yang aktif.
+
+## Ringkasan Best Practices
+
+- Gunakan `const` constructors di mana pun memungkinkan
+- Pecah widget besar menjadi komponen kecil untuk meminimalkan rebuild
+- Gunakan `ListView.builder` untuk list panjang, bukan `ListView` biasa
+- Optimalkan gambar dengan `cacheWidth`/`cacheHeight` dan caching
+- Hindari `Opacity` widget — gunakan warna dengan alpha langsung
+- Gunakan `RepaintBoundary` untuk widget yang sering di-repaint
+- Selalu ukur performa dengan DevTools sebelum mengoptimasi
+- Profiling dalam **profile mode**, bukan debug mode
+
+---
+
+Selanjutnya, kita akan membahas [Error Handling](/docs/tutorials/flutter-best-practices/error-handling) — cara menangani error dengan baik di aplikasi Flutter menggunakan try-catch, custom exceptions, dan error boundaries.

@@ -1,0 +1,606 @@
+---
+title: Null Safety
+description: Pelajari sistem null safety di Dart — nullable types, null-aware operators, late keyword, required keyword, type promotion, dan best practices untuk menulis kode yang aman dari null reference errors.
+---
+
+## Pengantar
+
+Salah satu error paling umum dalam pemrograman adalah **null reference error** — mencoba mengakses property atau method dari variabel yang bernilai `null`. Dart mengatasi masalah ini dengan fitur **sound null safety** yang memastikan variabel tidak bisa bernilai `null` kecuali Anda secara eksplisit mengizinkannya.
+
+Dengan null safety, Dart compiler dapat mendeteksi potensi null error **saat compile-time**, bukan saat runtime. Ini membuat kode Anda lebih aman, lebih mudah di-debug, dan lebih terprediksi.
+
+Di halaman ini, Anda akan mempelajari cara kerja null safety di Dart, mulai dari nullable types, null-aware operators, hingga keyword `late` dan `required`.
+
+## Non-Nullable vs Nullable Types
+
+Secara default, semua tipe di Dart bersifat **non-nullable** — artinya variabel tidak boleh bernilai `null`.
+
+```dart
+void main() {
+  // Non-nullable — tidak boleh null
+  String nama = 'Budi';
+  int umur = 25;
+  double tinggi = 170.5;
+
+  // nama = null;  // Error: A value of type 'Null' can't be assigned to a variable of type 'String'.
+  // umur = null;  // Error: sama seperti di atas
+
+  print('$nama, umur $umur, tinggi $tinggi');
+}
+```
+
+Untuk mengizinkan variabel bernilai `null`, tambahkan tanda tanya (`?`) setelah tipe data. Ini disebut **nullable type**.
+
+```dart
+void main() {
+  // Nullable — boleh bernilai null
+  String? nama = 'Budi';
+  int? umur = null;
+  double? tinggi;  // Default null jika tidak diberi nilai
+
+  print(nama);   // Budi
+  print(umur);   // null
+  print(tinggi); // null
+
+  // Bisa diubah ke null kapan saja
+  nama = null;
+  print(nama);   // null
+
+  // Bisa diubah kembali ke nilai non-null
+  nama = 'Siti';
+  print(nama);   // Siti
+}
+```
+
+### Perbedaan `String` dan `String?`
+
+```dart
+void main() {
+  String pasti = 'Selalu ada nilai';   // Dijamin tidak null
+  String? mungkin = 'Bisa null nanti'; // Mungkin null
+
+  // Anda bisa langsung memanggil method pada non-nullable
+  print(pasti.length);     // 16
+  print(pasti.toUpperCase()); // SELALU ADA NILAI
+
+  // Pada nullable, Anda perlu penanganan khusus
+  // print(mungkin.length); // Error: property 'length' can't be accessed on 'String?'
+  print(mungkin?.length);  // 16 (menggunakan null-aware operator)
+}
+```
+
+## Null-Aware Operators
+
+Dart menyediakan beberapa operator khusus untuk bekerja dengan nilai nullable secara aman dan ringkas.
+
+### Operator `?.` (Null-Aware Access)
+
+Operator `?.` mengakses property atau method hanya jika objek tidak null. Jika null, hasilnya adalah `null` tanpa error.
+
+```dart
+void main() {
+  String? nama = 'Dart';
+
+  // Akses aman — jika nama null, hasilnya null (bukan error)
+  print(nama?.length);       // 4
+  print(nama?.toUpperCase()); // DART
+
+  nama = null;
+  print(nama?.length);       // null
+  print(nama?.toUpperCase()); // null
+
+  // Chaining — bisa digunakan berturut-turut
+  String? teks = 'halo dunia';
+  print(teks?.toUpperCase().split(' ')); // [HALO, DUNIA]
+
+  teks = null;
+  print(teks?.toUpperCase().split(' ')); // null
+}
+```
+
+### Operator `??` (Null-Coalescing / If-Null)
+
+Operator `??` memberikan nilai default jika ekspresi di sebelah kiri bernilai `null`.
+
+```dart
+void main() {
+  String? nama = null;
+
+  // Jika nama null, gunakan 'Anonim' sebagai default
+  String tampilan = nama ?? 'Anonim';
+  print(tampilan); // Anonim
+
+  nama = 'Budi';
+  tampilan = nama ?? 'Anonim';
+  print(tampilan); // Budi
+
+  // Berguna untuk memberikan nilai default pada parameter
+  int? skor = null;
+  print('Skor: ${skor ?? 0}'); // Skor: 0
+
+  skor = 85;
+  print('Skor: ${skor ?? 0}'); // Skor: 85
+}
+```
+
+### Operator `??=` (Null-Aware Assignment)
+
+Operator `??=` memberikan nilai ke variabel **hanya jika** variabel tersebut saat ini bernilai `null`.
+
+```dart
+void main() {
+  String? nama;
+  print(nama); // null
+
+  // Karena nama null, maka diberi nilai 'Default'
+  nama ??= 'Default';
+  print(nama); // Default
+
+  // Karena nama sudah tidak null, assignment diabaikan
+  nama ??= 'Lainnya';
+  print(nama); // Default (tetap, tidak berubah)
+
+  // Contoh penggunaan praktis
+  int? jumlahRetry;
+  jumlahRetry ??= 3; // Set default jika belum diatur
+  print('Max retry: $jumlahRetry'); // Max retry: 3
+}
+```
+
+### Operator `!` (Null Assertion / Bang Operator)
+
+Operator `!` memberitahu compiler bahwa Anda **yakin** variabel tidak null pada titik tersebut. Jika ternyata null, akan terjadi runtime error.
+
+```dart
+void main() {
+  String? nama = 'Dart';
+
+  // Anda yakin nama tidak null — gunakan ! untuk mengakses sebagai non-nullable
+  String namaPasti = nama!;
+  print(namaPasti.length); // 4
+
+  // Hati-hati! Jika null, akan terjadi runtime error
+  String? kosong = null;
+  // String hasil = kosong!; // Runtime Error: Null check operator used on a null value
+
+  // Gunakan ! hanya jika Anda benar-benar yakin nilainya tidak null
+  List<String?> daftar = ['Andi', null, 'Citra'];
+  for (var item in daftar) {
+    if (item != null) {
+      // Setelah pengecekan null, aman menggunakan !
+      print(item!.toUpperCase());
+    }
+  }
+  // ANDI
+  // CITRA
+}
+```
+
+### Ringkasan Null-Aware Operators
+
+| Operator | Nama | Fungsi | Contoh |
+|----------|------|--------|--------|
+| `?.` | Null-aware access | Akses property/method jika tidak null | `nama?.length` |
+| `??` | If-null / null-coalescing | Nilai default jika null | `nama ?? 'Anonim'` |
+| `??=` | Null-aware assignment | Assign hanya jika null | `nama ??= 'Default'` |
+| `!` | Null assertion (bang) | Paksa non-nullable (bisa error) | `nama!.length` |
+
+## Late Keyword
+
+Keyword `late` digunakan untuk mendeklarasikan variabel non-nullable yang **belum langsung diberi nilai** saat deklarasi. Dart mempercayai bahwa Anda akan memberikan nilai sebelum variabel tersebut diakses.
+
+### Inisialisasi Tertunda
+
+```dart
+class Pengguna {
+  // late — akan diinisialisasi nanti, tapi dijamin sebelum diakses
+  late String nama;
+  late int umur;
+
+  void inisialisasi(String n, int u) {
+    nama = n;
+    umur = u;
+  }
+
+  void tampilkan() {
+    print('$nama, umur $umur tahun');
+  }
+}
+
+void main() {
+  var user = Pengguna();
+
+  // Inisialisasi sebelum diakses
+  user.inisialisasi('Andi', 25);
+  user.tampilkan(); // Andi, umur 25 tahun
+
+  // Jika diakses sebelum diinisialisasi:
+  // var user2 = Pengguna();
+  // user2.tampilkan(); // Runtime Error: LateInitializationError
+}
+```
+
+### Lazy Initialization
+
+Salah satu keunggulan `late` adalah mendukung **lazy initialization** — nilai dihitung hanya saat pertama kali diakses, bukan saat object dibuat.
+
+```dart
+class DataBerat {
+  // Tanpa late — dihitung langsung saat object dibuat
+  // final data = _muatData(); // Langsung dipanggil
+
+  // Dengan late — dihitung hanya saat pertama kali diakses
+  late final String data = _muatData();
+
+  String _muatData() {
+    print('Memuat data berat...');
+    // Simulasi proses berat
+    return 'Data berhasil dimuat';
+  }
+}
+
+void main() {
+  var obj = DataBerat();
+  print('Object dibuat'); // Object dibuat
+
+  // data belum dimuat — lazy!
+  print('Mengakses data...');
+  print(obj.data); // Memuat data berat... \n Data berhasil dimuat
+
+  // Akses kedua — tidak memuat ulang (sudah di-cache)
+  print(obj.data); // Data berhasil dimuat
+}
+```
+
+### Kapan Menggunakan `late`
+
+- **Inisialisasi tertunda:** Variabel yang nilainya baru tersedia setelah constructor selesai (misalnya dari dependency injection atau lifecycle method).
+- **Lazy initialization:** Komputasi berat yang hanya perlu dilakukan jika variabel benar-benar diakses.
+- **Circular references:** Dua object yang saling mereferensikan satu sama lain.
+
+## Required Keyword
+
+Keyword `required` digunakan pada **named parameters** untuk menandai bahwa parameter tersebut wajib diisi. Tanpa `required`, named parameters bersifat opsional.
+
+```dart
+// Tanpa required — parameter opsional (harus punya default atau nullable)
+void sapa({String nama = 'Tamu', int? umur}) {
+  print('Halo, $nama!');
+  if (umur != null) {
+    print('Umur: $umur tahun');
+  }
+}
+
+// Dengan required — parameter wajib diisi
+void daftarSiswa({
+  required String nama,
+  required int umur,
+  String? kelas, // Opsional
+}) {
+  print('Nama: $nama, Umur: $umur');
+  if (kelas != null) {
+    print('Kelas: $kelas');
+  }
+}
+
+void main() {
+  sapa(); // Halo, Tamu!
+  sapa(nama: 'Budi', umur: 20); // Halo, Budi! \n Umur: 20 tahun
+
+  daftarSiswa(nama: 'Citra', umur: 18); // Nama: Citra, Umur: 18
+  daftarSiswa(nama: 'Dina', umur: 17, kelas: 'XII-A');
+
+  // daftarSiswa(); // Error: required named parameter 'nama' must be provided
+}
+```
+
+### `required` pada Constructor
+
+```dart
+class Produk {
+  final String nama;
+  final double harga;
+  final String? deskripsi; // Opsional
+
+  // Constructor dengan required named parameters
+  Produk({
+    required this.nama,
+    required this.harga,
+    this.deskripsi,
+  });
+
+  @override
+  String toString() {
+    var hasil = '$nama - Rp$harga';
+    if (deskripsi != null) {
+      hasil += ' ($deskripsi)';
+    }
+    return hasil;
+  }
+}
+
+void main() {
+  var p1 = Produk(nama: 'Laptop', harga: 15000000);
+  var p2 = Produk(
+    nama: 'Mouse',
+    harga: 250000,
+    deskripsi: 'Wireless Bluetooth',
+  );
+
+  print(p1); // Laptop - Rp15000000.0
+  print(p2); // Mouse - Rp250000.0 (Wireless Bluetooth)
+}
+```
+
+## Type Promotion (Smart Cast)
+
+Dart memiliki fitur **type promotion** — setelah Anda melakukan pengecekan null, compiler secara otomatis mempromosikan tipe nullable menjadi non-nullable di dalam blok kode tersebut. Anda tidak perlu menggunakan operator `!` secara manual.
+
+```dart
+void cetakPanjang(String? teks) {
+  // Di sini, teks bertipe String? (nullable)
+
+  if (teks == null) {
+    print('Teks kosong (null)');
+    return;
+  }
+
+  // Setelah pengecekan null di atas, Dart tahu teks pasti tidak null
+  // teks otomatis dipromosikan menjadi String (non-nullable)
+  print('Panjang: ${teks.length}');       // Tidak perlu teks?.length atau teks!.length
+  print('Uppercase: ${teks.toUpperCase()}');
+}
+
+void main() {
+  cetakPanjang('Halo Dart'); // Panjang: 9 \n Uppercase: HALO DART
+  cetakPanjang(null);        // Teks kosong (null)
+}
+```
+
+### Type Promotion dengan `is`
+
+```dart
+void prosesData(Object data) {
+  // data bertipe Object — tidak bisa langsung akses method spesifik
+
+  if (data is String) {
+    // Di sini, data otomatis dipromosikan menjadi String
+    print('String: ${data.toUpperCase()}, panjang: ${data.length}');
+  } else if (data is int) {
+    // Di sini, data otomatis dipromosikan menjadi int
+    print('Integer: ${data * 2}');
+  } else if (data is List) {
+    // Di sini, data otomatis dipromosikan menjadi List
+    print('List dengan ${data.length} elemen');
+  } else {
+    print('Tipe tidak dikenal: ${data.runtimeType}');
+  }
+}
+
+void main() {
+  prosesData('Dart');      // String: DART, panjang: 4
+  prosesData(42);          // Integer: 84
+  prosesData([1, 2, 3]);   // List dengan 3 elemen
+  prosesData(3.14);        // Tipe tidak dikenal: double
+}
+```
+
+### Batasan Type Promotion
+
+Type promotion tidak bekerja pada **instance variables** (properties class) karena nilainya bisa berubah antara pengecekan dan penggunaan. Gunakan variabel lokal sebagai solusi.
+
+```dart
+class Contoh {
+  String? nama;
+
+  void tampilkan() {
+    // Ini tidak akan bekerja — nama adalah instance variable
+    // if (nama != null) {
+    //   print(nama.length); // Error: property 'length' can't be accessed on 'String?'
+    // }
+
+    // Solusi: salin ke variabel lokal
+    final namaCopy = nama;
+    if (namaCopy != null) {
+      print(namaCopy.length); // Berhasil — variabel lokal bisa dipromosikan
+    }
+  }
+}
+
+void main() {
+  var c = Contoh();
+  c.nama = 'Dart';
+  c.tampilkan(); // 4
+}
+```
+
+## Null Safety dalam Collections
+
+Null safety juga berlaku pada koleksi seperti `List` dan `Map`. Anda perlu memahami perbedaan antara koleksi yang nullable dan koleksi yang berisi elemen nullable.
+
+```dart
+void main() {
+  // List yang TIDAK nullable — list pasti ada, elemen pasti tidak null
+  List<String> buah = ['Apel', 'Mangga'];
+
+  // List yang NULLABLE — list-nya sendiri bisa null
+  List<String>? mungkinNull = null;
+  mungkinNull = ['Jeruk'];
+
+  // List dengan ELEMEN nullable — list pasti ada, tapi elemen bisa null
+  List<String?> denganNull = ['Apel', null, 'Mangga'];
+
+  // List nullable dengan elemen nullable — keduanya bisa null
+  List<String?>? semuaBisa = null;
+  semuaBisa = ['Apel', null];
+
+  print(buah);        // [Apel, Mangga]
+  print(mungkinNull); // [Jeruk]
+  print(denganNull);  // [Apel, null, Mangga]
+  print(semuaBisa);   // [Apel, null]
+}
+```
+
+### Memfilter Null dari List
+
+```dart
+void main() {
+  List<String?> dataMentah = ['Andi', null, 'Budi', null, 'Citra'];
+
+  // Cara 1: whereType — filter berdasarkan tipe non-nullable
+  List<String> bersih1 = dataMentah.whereType<String>().toList();
+  print(bersih1); // [Andi, Budi, Citra]
+
+  // Cara 2: where + cast
+  List<String> bersih2 = dataMentah
+      .where((item) => item != null)
+      .cast<String>()
+      .toList();
+  print(bersih2); // [Andi, Budi, Citra]
+
+  // Cara 3: nonNulls (Dart 3.0+)
+  List<String> bersih3 = dataMentah.nonNulls.toList();
+  print(bersih3); // [Andi, Budi, Citra]
+}
+```
+
+### Map dan Null Safety
+
+```dart
+void main() {
+  Map<String, int> skor = {
+    'Andi': 85,
+    'Budi': 92,
+  };
+
+  // Operator [] pada Map selalu mengembalikan nullable (V?)
+  // karena key mungkin tidak ada
+  int? skorAndi = skor['Andi'];
+  int? skorCitra = skor['Citra']; // null — key tidak ada
+
+  print(skorAndi);  // 85
+  print(skorCitra);  // null
+
+  // Gunakan ?? untuk nilai default
+  int nilaiAndi = skor['Andi'] ?? 0;
+  int nilaiCitra = skor['Citra'] ?? 0;
+
+  print('Andi: $nilaiAndi');  // Andi: 85
+  print('Citra: $nilaiCitra'); // Citra: 0
+
+  // Gunakan containsKey untuk pengecekan eksplisit
+  if (skor.containsKey('Budi')) {
+    print('Skor Budi: ${skor['Budi']}');
+  }
+}
+```
+
+## Best Practices
+
+Berikut panduan praktis untuk menulis kode Dart yang aman dan bersih dengan null safety:
+
+### 1. Gunakan Non-Nullable Secara Default
+
+Deklarasikan variabel sebagai non-nullable kecuali memang benar-benar bisa bernilai `null`. Ini membuat kode lebih aman dan mudah dipahami.
+
+```dart
+// Baik — non-nullable secara default
+String nama = 'Budi';
+int umur = 25;
+
+// Hanya gunakan nullable jika memang diperlukan
+String? namaTengah; // Tidak semua orang punya nama tengah
+DateTime? tanggalKadaluarsa; // Tidak semua produk punya tanggal kadaluarsa
+```
+
+### 2. Hindari Penggunaan `!` yang Berlebihan
+
+Operator `!` bisa menyebabkan runtime error. Gunakan alternatif yang lebih aman.
+
+```dart
+void main() {
+  String? nama = getNama();
+
+  // Kurang baik — bisa crash jika null
+  // print(nama!.toUpperCase());
+
+  // Lebih baik — gunakan null-aware operator
+  print(nama?.toUpperCase() ?? 'TIDAK ADA');
+
+  // Atau gunakan pengecekan null untuk type promotion
+  if (nama != null) {
+    print(nama.toUpperCase()); // Aman — type promotion
+  }
+}
+
+String? getNama() => 'Dart';
+```
+
+### 3. Gunakan `required` untuk Parameter Wajib
+
+```dart
+// Kurang baik — parameter penting tapi opsional
+class User {
+  String? nama;
+  String? email;
+  User({this.nama, this.email});
+}
+
+// Lebih baik — parameter penting ditandai required
+class UserBaik {
+  final String nama;
+  final String email;
+  final String? telepon; // Opsional karena memang tidak wajib
+
+  UserBaik({
+    required this.nama,
+    required this.email,
+    this.telepon,
+  });
+}
+```
+
+### 4. Gunakan `late` dengan Bijak
+
+```dart
+// Baik — late untuk lazy initialization
+class Config {
+  late final String apiUrl = _loadApiUrl();
+
+  String _loadApiUrl() {
+    // Komputasi berat, hanya dijalankan saat diakses
+    return 'https://api.example.com';
+  }
+}
+
+// Hati-hati — late tanpa inisialisasi bisa menyebabkan LateInitializationError
+// Pastikan variabel late selalu diinisialisasi sebelum diakses
+```
+
+## Ringkasan
+
+| Konsep | Sintaks | Keterangan |
+|--------|---------|------------|
+| Non-nullable | `String nama` | Tidak boleh null (default) |
+| Nullable | `String? nama` | Boleh bernilai null |
+| Null-aware access | `nama?.length` | Akses aman, return null jika null |
+| If-null | `nama ?? 'default'` | Nilai default jika null |
+| Null-aware assign | `nama ??= 'default'` | Assign hanya jika null |
+| Null assertion | `nama!` | Paksa non-nullable (bisa error) |
+| Late | `late String nama` | Inisialisasi tertunda |
+| Required | `required String nama` | Named parameter wajib |
+| Type promotion | `if (x != null) x.method()` | Otomatis promosi tipe setelah null check |
+
+Null safety adalah salah satu fitur terpenting di Dart modern. Dengan memahami nullable types, null-aware operators, dan best practices di atas, Anda dapat menulis kode yang lebih aman dan terhindar dari null reference errors yang sering menjadi sumber bug.
+
+## Penutup Seri Tutorial Dart
+
+Selamat! Anda telah menyelesaikan seluruh seri tutorial dasar Dart. Berikut ringkasan materi yang telah dipelajari:
+
+1. **Variabel dan Tipe Data** — Deklarasi variabel, tipe data dasar, `var`, `final`, `const`
+2. **Fungsi** — Deklarasi fungsi, parameter, return type, arrow function
+3. **Control Flow** — `if/else`, `switch`, `for`, `while`, `do-while`
+4. **Class dan Object** — OOP, constructor, inheritance, mixins
+5. **Null Safety** — Nullable types, null-aware operators, `late`, `required`
+
+Dengan fondasi Dart yang kuat ini, Anda siap melangkah ke tahap berikutnya — membangun aplikasi dengan **Flutter**. Lanjutkan ke bagian [Flutter Best Practices](/docs/tutorials/flutter-best-practices) untuk mempelajari panduan dan pola terbaik dalam pengembangan aplikasi Flutter.

@@ -1,0 +1,1127 @@
+---
+title: State Management
+description: Pelajari berbagai pendekatan state management di Flutter — mulai dari setState untuk kasus sederhana, hingga Provider, Riverpod, dan BLoC untuk aplikasi yang lebih kompleks. Pahami kapan menggunakan masing-masing dan best practices-nya.
+---
+
+## Pengantar
+
+State management adalah salah satu topik paling penting dalam pengembangan aplikasi Flutter. **State** adalah data yang dapat berubah selama siklus hidup aplikasi dan mempengaruhi tampilan UI. Bagaimana Anda mengelola state akan menentukan seberapa mudah aplikasi di-maintain, di-test, dan di-scale.
+
+Di halaman ini, Anda akan mempelajari konsep dasar state, berbagai pendekatan state management yang populer di Flutter, serta kapan dan mengapa menggunakan masing-masing pendekatan.
+
+## Apa Itu State?
+
+Dalam konteks Flutter, **state** adalah informasi yang bisa dibaca secara sinkron saat widget di-build dan mungkin berubah selama lifetime widget tersebut. Ketika state berubah, UI perlu di-rebuild untuk mencerminkan perubahan tersebut.
+
+```dart
+// Contoh sederhana: counter adalah "state"
+// Ketika counter berubah, UI harus diperbarui
+int counter = 0; // Ini adalah state
+
+// Ketika user menekan tombol:
+counter++; // State berubah
+// Flutter perlu rebuild UI untuk menampilkan nilai baru
+```
+
+### Jenis-Jenis State
+
+Flutter membedakan dua jenis state utama:
+
+**1. Ephemeral State (Local State)**
+
+State yang hanya relevan untuk satu widget. Tidak perlu diakses oleh widget lain. Contoh: halaman tab yang aktif, animasi progress, input field yang sedang diketik.
+
+```dart
+class TabExample extends StatefulWidget {
+  const TabExample({super.key});
+
+  @override
+  State<TabExample> createState() => _TabExampleState();
+}
+
+class _TabExampleState extends State<TabExample> {
+  // Ephemeral state — hanya dibutuhkan oleh widget ini
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: (index) {
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+      ],
+    );
+  }
+}
+```
+
+**2. App State (Shared State)**
+
+State yang dibutuhkan oleh banyak widget atau perlu bertahan di berbagai bagian aplikasi. Contoh: data user yang login, daftar item di keranjang belanja, preferensi tema.
+
+```dart
+// App state — dibutuhkan di banyak tempat dalam aplikasi
+class AppState {
+  final User? currentUser;
+  final List<CartItem> cartItems;
+  final ThemeMode themeMode;
+
+  AppState({
+    this.currentUser,
+    this.cartItems = const [],
+    this.themeMode = ThemeMode.system,
+  });
+}
+
+// Widget di halaman profil butuh currentUser
+// Widget di halaman checkout butuh cartItems
+// Widget di settings butuh themeMode
+// Semua ini adalah app state
+```
+
+### Kapan Menggunakan Apa?
+
+| Jenis State | Contoh | Pendekatan |
+|-------------|--------|------------|
+| Ephemeral | Tab aktif, form input, animasi | `setState` |
+| App State (sederhana) | Tema, bahasa, user login | Provider |
+| App State (menengah) | Cart, favorites, filter | Riverpod |
+| App State (kompleks) | Real-time data, multi-event flows | BLoC |
+
+## setState — Pendekatan Paling Dasar
+
+`setState` adalah mekanisme bawaan Flutter untuk mengelola ephemeral state. Ketika Anda memanggil `setState()`, Flutter akan me-rebuild widget tersebut dengan state yang baru.
+
+### Cara Kerja setState
+
+```dart
+import 'package:flutter/material.dart';
+
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;
+
+  void _increment() {
+    // setState memberitahu Flutter bahwa state berubah
+    // dan widget perlu di-rebuild
+    setState(() {
+      _counter++;
+    });
+  }
+
+  void _decrement() {
+    setState(() {
+      if (_counter > 0) _counter--;
+    });
+  }
+
+  void _reset() {
+    setState(() {
+      _counter = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter App')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Jumlah tap:', style: TextStyle(fontSize: 16)),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _decrement,
+                  child: const Icon(Icons.remove),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _reset,
+                  child: const Text('Reset'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _increment,
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Contoh Praktis: Todo List Sederhana
+
+```dart
+import 'package:flutter/material.dart';
+
+class SimpleTodoPage extends StatefulWidget {
+  const SimpleTodoPage({super.key});
+
+  @override
+  State<SimpleTodoPage> createState() => _SimpleTodoPageState();
+}
+
+class _SimpleTodoPageState extends State<SimpleTodoPage> {
+  final List<String> _todos = [];
+  final TextEditingController _controller = TextEditingController();
+
+  void _addTodo() {
+    final text = _controller.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _todos.add(text);
+      });
+      _controller.clear();
+    }
+  }
+
+  void _removeTodo(int index) {
+    setState(() {
+      _todos.removeAt(index);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Todo List')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Tambah todo baru...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _addTodo(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _addTodo,
+                  icon: const Icon(Icons.add_circle),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _todos.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(_todos[index]),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _removeTodo(index),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Kapan setState Cocok Digunakan
+
+- State hanya dibutuhkan oleh **satu widget** (atau widget dan child langsung-nya)
+- Logic state **sederhana** (toggle, counter, form input)
+- Tidak perlu **berbagi state** antar widget yang tidak berhubungan langsung
+- Prototipe cepat atau widget yang terisolasi
+
+### Kapan setState Tidak Cocok
+
+- State perlu diakses oleh **banyak widget** di berbagai level widget tree
+- Logic state **kompleks** dengan banyak kondisi dan transformasi
+- Aplikasi membutuhkan **testability** yang tinggi (sulit unit test setState)
+- Terjadi **prop drilling** — meneruskan data melalui banyak level widget
+
+## Provider — State Management yang Sederhana dan Scalable
+
+**Provider** adalah package state management yang direkomendasikan oleh tim Flutter untuk kebanyakan kasus. Provider menggunakan konsep `InheritedWidget` yang sudah di-simplifikasi, sehingga mudah dipahami dan digunakan.
+
+### Konsep Dasar Provider
+
+Provider bekerja dengan tiga konsep utama:
+
+1. **ChangeNotifier** — Class yang menyimpan state dan memberitahu listener saat state berubah
+2. **ChangeNotifierProvider** — Widget yang menyediakan instance ChangeNotifier ke widget tree
+3. **Consumer / context.watch** — Cara widget membaca dan bereaksi terhadap perubahan state
+
+### Contoh: Counter dengan Provider
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+// 1. Buat class yang menyimpan state dan extends ChangeNotifier
+class CounterModel extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    _count++;
+    notifyListeners(); // Beritahu semua listener bahwa state berubah
+  }
+
+  void decrement() {
+    if (_count > 0) {
+      _count--;
+      notifyListeners();
+    }
+  }
+
+  void reset() {
+    _count = 0;
+    notifyListeners();
+  }
+}
+
+// 2. Sediakan Provider di atas widget tree
+class CounterApp extends StatelessWidget {
+  const CounterApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => CounterModel(),
+      child: const CounterHomePage(),
+    );
+  }
+}
+
+// 3. Konsumsi state di widget manapun di bawah Provider
+class CounterHomePage extends StatelessWidget {
+  const CounterHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Provider Counter')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Jumlah tap:'),
+            // context.watch — rebuild widget saat state berubah
+            Text(
+              '${context.watch<CounterModel>().count}',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'increment',
+            // context.read — akses tanpa rebuild (untuk aksi)
+            onPressed: () => context.read<CounterModel>().increment(),
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'decrement',
+            onPressed: () => context.read<CounterModel>().decrement(),
+            child: const Icon(Icons.remove),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Contoh Praktis: Tema Aplikasi dengan Provider
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class ThemeModel extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  bool get isDarkMode => _themeMode == ThemeMode.dark;
+
+  void toggleTheme() {
+    _themeMode =
+        _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    notifyListeners();
+  }
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
+  }
+}
+
+// Penggunaan di root app
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => ThemeModel(),
+      child: Consumer<ThemeModel>(
+        builder: (context, themeModel, child) {
+          return MaterialApp(
+            themeMode: themeModel.themeMode,
+            theme: ThemeData.light(useMaterial3: true),
+            darkTheme: ThemeData.dark(useMaterial3: true),
+            home: const SettingsPage(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeModel = context.watch<ThemeModel>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pengaturan')),
+      body: SwitchListTile(
+        title: const Text('Mode Gelap'),
+        subtitle: const Text('Aktifkan tema gelap'),
+        value: themeModel.isDarkMode,
+        onChanged: (_) => themeModel.toggleTheme(),
+      ),
+    );
+  }
+}
+```
+
+### Perbedaan `context.watch`, `context.read`, dan `Consumer`
+
+```dart
+class ExampleWidget extends StatelessWidget {
+  const ExampleWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // context.watch — widget akan rebuild saat CounterModel berubah
+    // Gunakan di dalam build() untuk menampilkan data
+    final count = context.watch<CounterModel>().count;
+
+    return Column(
+      children: [
+        Text('Count: $count'),
+
+        ElevatedButton(
+          // context.read — tidak menyebabkan rebuild
+          // Gunakan di dalam callback (onPressed, onTap, dll.)
+          onPressed: () => context.read<CounterModel>().increment(),
+          child: const Text('Tambah'),
+        ),
+
+        // Consumer — alternatif context.watch dengan scope yang lebih kecil
+        // Hanya bagian di dalam builder yang rebuild
+        Consumer<CounterModel>(
+          builder: (context, model, child) {
+            return Text('Dari Consumer: ${model.count}');
+          },
+        ),
+      ],
+    );
+  }
+}
+```
+
+## Riverpod — Provider yang Lebih Aman dan Fleksibel
+
+**Riverpod** adalah evolusi dari Provider yang mengatasi beberapa keterbatasannya. Riverpod tidak bergantung pada `BuildContext`, mendukung multiple providers dengan tipe yang sama, dan memiliki compile-time safety yang lebih baik.
+
+### Konsep Dasar Riverpod
+
+Riverpod menggunakan konsep **provider** sebagai unit state yang berdiri sendiri (tidak bergantung pada widget tree):
+
+1. **Provider** — Menyediakan nilai read-only
+2. **StateProvider** — Menyediakan state sederhana yang bisa diubah
+3. **NotifierProvider** — Menyediakan state dengan logic kompleks (pengganti StateNotifierProvider)
+4. **ref.watch** — Membaca state dan rebuild saat berubah
+5. **ref.read** — Membaca state sekali tanpa rebuild
+
+### Contoh: Counter dengan Riverpod
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// 1. Definisikan provider di top-level (di luar widget)
+// StateProvider cocok untuk state sederhana
+final counterProvider = StateProvider<int>((ref) => 0);
+
+// 2. Bungkus app dengan ProviderScope
+void main() {
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(home: CounterPage());
+  }
+}
+
+// 3. Gunakan ConsumerWidget untuk mengakses provider
+class CounterPage extends ConsumerWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // ref.watch — rebuild widget saat state berubah
+    final count = ref.watch(counterProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Riverpod Counter')),
+      body: Center(
+        child: Text('Count: $count', style: const TextStyle(fontSize: 48)),
+      ),
+      floatingActionButton: FloatingActionButton(
+        // ref.read — akses tanpa rebuild (untuk aksi)
+        onPressed: () => ref.read(counterProvider.notifier).state++,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+### Contoh Praktis: Todo List dengan Riverpod Notifier
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// Model data
+class Todo {
+  final String id;
+  final String title;
+  final bool isCompleted;
+
+  Todo({
+    required this.id,
+    required this.title,
+    this.isCompleted = false,
+  });
+
+  Todo copyWith({String? title, bool? isCompleted}) {
+    return Todo(
+      id: id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+}
+
+// Notifier — mengelola state dan logic
+class TodoNotifier extends Notifier<List<Todo>> {
+  @override
+  List<Todo> build() => []; // State awal: list kosong
+
+  void addTodo(String title) {
+    state = [
+      ...state,
+      Todo(id: DateTime.now().toString(), title: title),
+    ];
+  }
+
+  void toggleTodo(String id) {
+    state = state.map((todo) {
+      if (todo.id == id) {
+        return todo.copyWith(isCompleted: !todo.isCompleted);
+      }
+      return todo;
+    }).toList();
+  }
+
+  void removeTodo(String id) {
+    state = state.where((todo) => todo.id != id).toList();
+  }
+}
+
+// Provider yang menggunakan Notifier
+final todoProvider = NotifierProvider<TodoNotifier, List<Todo>>(
+  TodoNotifier.new,
+);
+
+// Derived provider — menghitung jumlah todo yang belum selesai
+final pendingTodoCountProvider = Provider<int>((ref) {
+  final todos = ref.watch(todoProvider);
+  return todos.where((todo) => !todo.isCompleted).length;
+});
+```
+
+### Keunggulan Riverpod vs Provider
+
+| Aspek | Provider | Riverpod |
+|-------|----------|----------|
+| Bergantung pada BuildContext | Ya | Tidak |
+| Multiple provider tipe sama | Tidak bisa | Bisa |
+| Compile-time safety | Terbatas | Lebih baik |
+| Testing | Perlu widget test | Bisa unit test murni |
+| Derived state | Manual | Built-in (Provider chaining) |
+
+## BLoC — Business Logic Component
+
+**BLoC** (Business Logic Component) adalah pattern yang memisahkan business logic dari UI secara ketat menggunakan **Streams**. BLoC menerima **events** sebagai input dan menghasilkan **states** sebagai output.
+
+### Konsep Dasar BLoC
+
+BLoC mengikuti alur unidirectional data flow:
+
+1. **Event** — Aksi yang terjadi (user tap, data loaded, dll.)
+2. **BLoC** — Menerima event, memproses logic, dan menghasilkan state baru
+3. **State** — Representasi kondisi UI saat ini
+4. **BlocProvider** — Menyediakan BLoC ke widget tree
+5. **BlocBuilder** — Rebuild UI berdasarkan perubahan state
+
+### Contoh: Counter dengan BLoC
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+// 1. Definisikan Events — apa yang bisa terjadi
+sealed class CounterEvent {}
+
+class IncrementPressed extends CounterEvent {}
+
+class DecrementPressed extends CounterEvent {}
+
+class ResetPressed extends CounterEvent {}
+
+// 2. Definisikan States — kondisi UI yang mungkin
+// Untuk counter sederhana, state cukup berupa int
+// Untuk kasus kompleks, gunakan class terpisah
+
+// 3. Buat BLoC — terima event, hasilkan state
+class CounterBloc extends Bloc<CounterEvent, int> {
+  CounterBloc() : super(0) {
+    // Daftarkan handler untuk setiap event
+    on<IncrementPressed>((event, emit) {
+      emit(state + 1);
+    });
+
+    on<DecrementPressed>((event, emit) {
+      if (state > 0) emit(state - 1);
+    });
+
+    on<ResetPressed>((event, emit) {
+      emit(0);
+    });
+  }
+}
+
+// 4. Gunakan di UI
+class CounterPage extends StatelessWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => CounterBloc(),
+      child: const CounterView(),
+    );
+  }
+}
+
+class CounterView extends StatelessWidget {
+  const CounterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('BLoC Counter')),
+      body: Center(
+        child: BlocBuilder<CounterBloc, int>(
+          builder: (context, count) {
+            return Text(
+              '$count',
+              style: const TextStyle(fontSize: 48),
+            );
+          },
+        ),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'increment',
+            onPressed: () =>
+                context.read<CounterBloc>().add(IncrementPressed()),
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'decrement',
+            onPressed: () =>
+                context.read<CounterBloc>().add(DecrementPressed()),
+            child: const Icon(Icons.remove),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'reset',
+            onPressed: () =>
+                context.read<CounterBloc>().add(ResetPressed()),
+            child: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+
+### Contoh Praktis: Authentication BLoC
+
+```dart
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+// Events
+sealed class AuthEvent {}
+
+class LoginRequested extends AuthEvent {
+  final String email;
+  final String password;
+
+  LoginRequested({required this.email, required this.password});
+}
+
+class LogoutRequested extends AuthEvent {}
+
+// States — menggunakan sealed class untuk pattern matching
+sealed class AuthState {}
+
+class AuthInitial extends AuthState {}
+
+class AuthLoading extends AuthState {}
+
+class AuthAuthenticated extends AuthState {
+  final String userName;
+
+  AuthAuthenticated({required this.userName});
+}
+
+class AuthError extends AuthState {
+  final String message;
+
+  AuthError({required this.message});
+}
+
+// BLoC
+class AuthBloc extends Bloc<AuthEvent, AuthState> {
+  AuthBloc() : super(AuthInitial()) {
+    on<LoginRequested>(_onLoginRequested);
+    on<LogoutRequested>(_onLogoutRequested);
+  }
+
+  Future<void> _onLoginRequested(
+    LoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      // Simulasi API call
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (event.email.isNotEmpty && event.password.length >= 6) {
+        emit(AuthAuthenticated(userName: event.email.split('@').first));
+      } else {
+        emit(AuthError(message: 'Email atau password tidak valid'));
+      }
+    } catch (e) {
+      emit(AuthError(message: 'Terjadi kesalahan: $e'));
+    }
+  }
+
+  void _onLogoutRequested(
+    LogoutRequested event,
+    Emitter<AuthState> emit,
+  ) {
+    emit(AuthInitial());
+  }
+}
+```
+
+### Penggunaan BlocBuilder dan BlocListener
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+class LoginPage extends StatelessWidget {
+  const LoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => AuthBloc(),
+      child: const LoginView(),
+    );
+  }
+}
+
+class LoginView extends StatelessWidget {
+  const LoginView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: BlocConsumer<AuthBloc, AuthState>(
+        // listener — untuk side effects (snackbar, navigasi, dll.)
+        listener: (context, state) {
+          if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+          if (state is AuthAuthenticated) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Selamat datang, ${state.userName}!')),
+            );
+          }
+        },
+        // builder — untuk membangun UI berdasarkan state
+        builder: (context, state) {
+          if (state is AuthLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (state is AuthAuthenticated) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Halo, ${state.userName}!',
+                      style: const TextStyle(fontSize: 24)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () =>
+                        context.read<AuthBloc>().add(LogoutRequested()),
+                    child: const Text('Logout'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // State: AuthInitial atau AuthError — tampilkan form login
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: LoginForm(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class LoginForm extends StatefulWidget {
+  const LoginForm({super.key});
+
+  @override
+  State<LoginForm> createState() => _LoginFormState();
+}
+
+class _LoginFormState extends State<LoginForm> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        TextField(
+          controller: _emailController,
+          decoration: const InputDecoration(
+            labelText: 'Email',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Password',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: () {
+            context.read<AuthBloc>().add(
+                  LoginRequested(
+                    email: _emailController.text,
+                    password: _passwordController.text,
+                  ),
+                );
+          },
+          child: const Text('Login'),
+        ),
+      ],
+    );
+  }
+}
+```
+
+## Perbandingan Pendekatan State Management
+
+Berikut perbandingan lengkap keempat pendekatan yang telah dibahas:
+
+| Aspek | setState | Provider | Riverpod | BLoC |
+|-------|----------|----------|----------|------|
+| Kompleksitas setup | Sangat rendah | Rendah | Rendah | Menengah |
+| Learning curve | Mudah | Mudah | Sedang | Tinggi |
+| Testability | Sulit | Sedang | Tinggi | Sangat tinggi |
+| Scalability | Rendah | Sedang | Tinggi | Sangat tinggi |
+| Boilerplate | Minimal | Sedikit | Sedikit | Banyak |
+| Separation of concerns | Tidak ada | Sedang | Baik | Sangat baik |
+| Package tambahan | Tidak perlu | `provider` | `flutter_riverpod` | `flutter_bloc` |
+
+### Kapan Menggunakan Masing-Masing
+
+**Gunakan `setState` ketika:**
+- State hanya lokal untuk satu widget
+- Logic sangat sederhana (toggle, counter)
+- Membuat prototipe cepat
+
+**Gunakan Provider ketika:**
+- Perlu berbagi state antar beberapa widget
+- Aplikasi berukuran kecil hingga menengah
+- Tim baru mengenal state management Flutter
+
+**Gunakan Riverpod ketika:**
+- Butuh compile-time safety yang lebih baik
+- Perlu multiple providers dengan tipe yang sama
+- Ingin testing yang mudah tanpa widget test
+- Aplikasi berukuran menengah hingga besar
+
+**Gunakan BLoC ketika:**
+- Aplikasi memiliki business logic yang kompleks
+- Butuh pemisahan ketat antara UI dan logic
+- Tim besar yang membutuhkan pattern yang konsisten
+- Aplikasi enterprise dengan banyak event dan state transitions
+
+## Best Practices State Management
+
+### 1. Pilih Satu Pendekatan dan Konsisten
+
+Hindari mencampur banyak solusi state management dalam satu proyek. Pilih satu yang sesuai dengan kebutuhan dan gunakan secara konsisten.
+
+```dart
+// Baik — konsisten menggunakan satu pendekatan
+// Seluruh app menggunakan Riverpod
+final userProvider = NotifierProvider<UserNotifier, User>(UserNotifier.new);
+final cartProvider = NotifierProvider<CartNotifier, List<CartItem>>(CartNotifier.new);
+final themeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
+// Kurang baik — mencampur Provider dan BLoC tanpa alasan jelas
+// Beberapa fitur pakai Provider, yang lain pakai BLoC
+```
+
+### 2. Pisahkan State dari UI
+
+Jangan letakkan business logic di dalam widget. Pisahkan ke class terpisah agar mudah di-test dan di-maintain.
+
+```dart
+// Kurang baik — logic di dalam widget
+class OrderPage extends StatefulWidget {
+  // ...
+}
+
+class _OrderPageState extends State<OrderPage> {
+  double _calculateTotal(List<Item> items) {
+    double total = 0;
+    for (var item in items) {
+      total += item.price * item.quantity;
+      if (item.hasDiscount) {
+        total -= item.price * item.quantity * item.discountPercent / 100;
+      }
+    }
+    return total;
+  }
+  // ... banyak logic lainnya di sini
+}
+
+// Lebih baik — logic di class terpisah
+class OrderCalculator {
+  double calculateTotal(List<Item> items) {
+    return items.fold(0.0, (total, item) {
+      final subtotal = item.price * item.quantity;
+      final discount =
+          item.hasDiscount ? subtotal * item.discountPercent / 100 : 0;
+      return total + subtotal - discount;
+    });
+  }
+}
+```
+
+### 3. Gunakan Immutable State
+
+State yang immutable lebih mudah di-track perubahannya dan menghindari bug yang sulit di-debug.
+
+```dart
+// Baik — immutable state dengan copyWith
+class UserState {
+  final String name;
+  final String email;
+  final bool isVerified;
+
+  const UserState({
+    required this.name,
+    required this.email,
+    this.isVerified = false,
+  });
+
+  UserState copyWith({
+    String? name,
+    String? email,
+    bool? isVerified,
+  }) {
+    return UserState(
+      name: name ?? this.name,
+      email: email ?? this.email,
+      isVerified: isVerified ?? this.isVerified,
+    );
+  }
+}
+
+// Penggunaan
+final currentState = UserState(name: 'Budi', email: 'budi@email.com');
+final updatedState = currentState.copyWith(isVerified: true);
+// currentState tidak berubah — immutable
+```
+
+### 4. Minimalkan Scope Rebuild
+
+Pastikan hanya widget yang benar-benar membutuhkan data yang di-rebuild saat state berubah.
+
+```dart
+// Kurang baik — seluruh halaman rebuild saat counter berubah
+class MyPage extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(counterProvider);
+    return Scaffold(
+      body: Column(
+        children: [
+          const HeavyWidget(),     // Ikut rebuild padahal tidak perlu
+          const AnotherWidget(),   // Ikut rebuild padahal tidak perlu
+          Text('Count: $count'),   // Hanya ini yang butuh rebuild
+        ],
+      ),
+    );
+  }
+}
+
+// Lebih baik — hanya widget yang butuh data yang rebuild
+class MyPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          const HeavyWidget(),     // Tidak rebuild
+          const AnotherWidget(),   // Tidak rebuild
+          const CounterText(),     // Hanya ini yang rebuild
+        ],
+      ),
+    );
+  }
+}
+
+class CounterText extends ConsumerWidget {
+  const CounterText({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(counterProvider);
+    return Text('Count: $count');
+  }
+}
+```
+
+## Ringkasan
+
+| Konsep | Penjelasan |
+|--------|------------|
+| Ephemeral State | State lokal untuk satu widget, gunakan `setState` |
+| App State | State yang dibagikan antar widget, gunakan Provider/Riverpod/BLoC |
+| setState | Bawaan Flutter, cocok untuk state sederhana dan lokal |
+| Provider | Sederhana, berbasis ChangeNotifier, cocok untuk app kecil-menengah |
+| Riverpod | Evolusi Provider, compile-safe, cocok untuk app menengah-besar |
+| BLoC | Event-driven, separation of concerns ketat, cocok untuk app kompleks |
+| Immutable State | Gunakan `copyWith` pattern untuk state yang mudah di-track |
+| Minimal Rebuild | Batasi scope `watch`/`Consumer` ke widget yang benar-benar butuh data |
+
+Memilih pendekatan state management yang tepat adalah keputusan arsitektural yang penting. Tidak ada solusi yang "paling benar" untuk semua kasus — yang terpenting adalah memahami trade-off masing-masing dan memilih yang sesuai dengan kebutuhan proyek dan kemampuan tim Anda.
+
+Selanjutnya, pelajari cara mengorganisir kode Flutter Anda dengan baik di halaman [Project Structure](/docs/tutorials/flutter-best-practices/project-structure).

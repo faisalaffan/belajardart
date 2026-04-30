@@ -1,0 +1,606 @@
+---
+title: Control Flow
+description: Pelajari struktur kontrol di Dart — mulai dari if/else, ternary operator, switch/case, perulangan for, while, do-while, hingga break, continue, dan assertions.
+---
+
+## Pengantar
+
+Control flow (alur kontrol) menentukan **urutan eksekusi** kode dalam program. Tanpa control flow, kode hanya berjalan dari atas ke bawah secara linear. Dengan control flow, Anda bisa membuat keputusan, mengulang proses, dan melewati bagian tertentu berdasarkan kondisi.
+
+Di halaman ini, Anda akan mempelajari semua struktur kontrol utama di Dart: percabangan (`if/else`, `switch`), perulangan (`for`, `while`, `do-while`), serta keyword pendukung seperti `break` dan `continue`.
+
+## If / Else
+
+Pernyataan `if/else` digunakan untuk menjalankan blok kode berdasarkan kondisi boolean.
+
+### If Sederhana
+
+```dart
+void main() {
+  int umur = 18;
+
+  if (umur >= 17) {
+    print('Anda boleh membuat KTP');
+  }
+}
+```
+
+### If-Else
+
+```dart
+void main() {
+  int suhu = 35;
+
+  if (suhu > 30) {
+    print('Cuaca panas');
+  } else {
+    print('Cuaca sejuk');
+  }
+}
+```
+
+### If-Else If-Else
+
+Gunakan `else if` untuk memeriksa beberapa kondisi secara berurutan.
+
+```dart
+void main() {
+  int nilai = 78;
+
+  if (nilai >= 90) {
+    print('Grade: A');
+  } else if (nilai >= 80) {
+    print('Grade: B');
+  } else if (nilai >= 70) {
+    print('Grade: C');
+  } else if (nilai >= 60) {
+    print('Grade: D');
+  } else {
+    print('Grade: E');
+  }
+  // Output: Grade: C
+}
+```
+
+### Nested If
+
+Anda bisa menyarangkan `if` di dalam `if` lain, meskipun sebaiknya dihindari jika terlalu dalam demi keterbacaan kode.
+
+```dart
+void main() {
+  bool sudahLogin = true;
+  String peran = 'admin';
+
+  if (sudahLogin) {
+    if (peran == 'admin') {
+      print('Selamat datang, Admin!');
+    } else {
+      print('Selamat datang, User!');
+    }
+  } else {
+    print('Silakan login terlebih dahulu');
+  }
+}
+```
+
+### If dengan Operator Logika
+
+```dart
+void main() {
+  int umur = 25;
+  bool punyaSIM = true;
+
+  // AND — kedua kondisi harus true
+  if (umur >= 17 && punyaSIM) {
+    print('Boleh mengemudi');
+  }
+
+  // OR — salah satu kondisi true sudah cukup
+  String hari = 'Sabtu';
+  if (hari == 'Sabtu' || hari == 'Minggu') {
+    print('Akhir pekan!');
+  }
+
+  // NOT — membalik kondisi
+  bool sedangHujan = false;
+  if (!sedangHujan) {
+    print('Ayo jalan-jalan');
+  }
+}
+```
+
+## Ternary Operator
+
+Ternary operator (`? :`) adalah cara ringkas untuk menulis `if/else` sederhana dalam satu baris. Cocok untuk menentukan nilai berdasarkan kondisi.
+
+```dart
+void main() {
+  int umur = 20;
+
+  // Menggunakan if/else biasa
+  String status;
+  if (umur >= 17) {
+    status = 'Dewasa';
+  } else {
+    status = 'Anak-anak';
+  }
+
+  // Menggunakan ternary operator — lebih ringkas
+  String statusTernary = umur >= 17 ? 'Dewasa' : 'Anak-anak';
+
+  print(status);         // Dewasa
+  print(statusTernary);  // Dewasa
+}
+```
+
+### Contoh Penggunaan Ternary
+
+```dart
+void main() {
+  int stok = 0;
+  String pesanStok = stok > 0 ? 'Tersedia ($stok item)' : 'Habis';
+  print(pesanStok); // Habis
+
+  // Ternary di dalam string interpolation
+  bool premium = true;
+  print('Akun: ${premium ? "Premium" : "Gratis"}');
+  // Output: Akun: Premium
+
+  // Nested ternary (hindari jika terlalu kompleks)
+  int nilai = 85;
+  String grade = nilai >= 90
+      ? 'A'
+      : nilai >= 80
+          ? 'B'
+          : nilai >= 70
+              ? 'C'
+              : 'D';
+  print('Grade: $grade'); // Grade: B
+}
+```
+
+## Switch / Case
+
+Pernyataan `switch` mencocokkan sebuah nilai dengan beberapa kemungkinan (`case`). Lebih rapi daripada rangkaian `if-else if` yang panjang ketika membandingkan satu variabel dengan banyak nilai.
+
+### Switch Dasar
+
+```dart
+void main() {
+  String hari = 'Rabu';
+
+  switch (hari) {
+    case 'Senin':
+      print('Hari kerja pertama');
+      break;
+    case 'Selasa':
+    case 'Rabu':
+    case 'Kamis':
+      print('Pertengahan minggu');
+      break;
+    case 'Jumat':
+      print('Hari terakhir kerja');
+      break;
+    case 'Sabtu':
+    case 'Minggu':
+      print('Akhir pekan');
+      break;
+    default:
+      print('Hari tidak valid');
+  }
+  // Output: Pertengahan minggu
+}
+```
+
+### Switch dengan Enum
+
+`switch` sangat cocok digunakan bersama `enum` karena Dart bisa memperingatkan jika ada case yang terlewat.
+
+```dart
+enum StatusPesanan { menunggu, diproses, dikirim, selesai, dibatalkan }
+
+void main() {
+  StatusPesanan status = StatusPesanan.dikirim;
+
+  switch (status) {
+    case StatusPesanan.menunggu:
+      print('Pesanan menunggu konfirmasi');
+      break;
+    case StatusPesanan.diproses:
+      print('Pesanan sedang diproses');
+      break;
+    case StatusPesanan.dikirim:
+      print('Pesanan dalam perjalanan');
+      break;
+    case StatusPesanan.selesai:
+      print('Pesanan telah diterima');
+      break;
+    case StatusPesanan.dibatalkan:
+      print('Pesanan dibatalkan');
+      break;
+  }
+  // Output: Pesanan dalam perjalanan
+}
+```
+
+### Switch Expression (Dart 3)
+
+Dart 3 memperkenalkan **switch expression** yang lebih ringkas dan bisa langsung mengembalikan nilai. Ini adalah fitur modern yang sangat berguna.
+
+```dart
+enum Musim { semi, panas, gugur, dingin }
+
+void main() {
+  Musim musim = Musim.gugur;
+
+  // Switch expression — langsung menghasilkan nilai
+  String deskripsi = switch (musim) {
+    Musim.semi => 'Bunga bermekaran',
+    Musim.panas => 'Cuaca cerah dan hangat',
+    Musim.gugur => 'Daun berguguran',
+    Musim.dingin => 'Salju turun',
+  };
+
+  print(deskripsi); // Daun berguguran
+
+  // Switch expression dengan tipe lain
+  int kodeHari = 3;
+  String namaHari = switch (kodeHari) {
+    1 => 'Senin',
+    2 => 'Selasa',
+    3 => 'Rabu',
+    4 => 'Kamis',
+    5 => 'Jumat',
+    6 => 'Sabtu',
+    7 => 'Minggu',
+    _ => 'Tidak valid', // _ adalah wildcard (default)
+  };
+
+  print(namaHari); // Rabu
+}
+```
+
+## For Loop
+
+Perulangan `for` digunakan untuk mengeksekusi blok kode sejumlah tertentu kali.
+
+### For Loop Standar
+
+```dart
+void main() {
+  // Mencetak angka 1 sampai 5
+  for (int i = 1; i <= 5; i++) {
+    print('Angka: $i');
+  }
+  // Angka: 1
+  // Angka: 2
+  // Angka: 3
+  // Angka: 4
+  // Angka: 5
+
+  // Hitung mundur
+  for (int i = 5; i >= 1; i--) {
+    print('Hitung mundur: $i');
+  }
+
+  // Perulangan dengan langkah (step) tertentu
+  for (int i = 0; i <= 20; i += 5) {
+    print(i); // 0, 5, 10, 15, 20
+  }
+}
+```
+
+### For-In Loop
+
+`for-in` digunakan untuk mengiterasi elemen-elemen dalam sebuah koleksi (List, Set, dll.) tanpa perlu menggunakan index.
+
+```dart
+void main() {
+  var buah = ['Apel', 'Mangga', 'Jeruk', 'Pisang'];
+
+  // Iterasi setiap elemen
+  for (var item in buah) {
+    print('Buah: $item');
+  }
+
+  // Iterasi Map menggunakan entries
+  var ibukota = {
+    'Indonesia': 'Jakarta',
+    'Jepang': 'Tokyo',
+    'Korea': 'Seoul',
+  };
+
+  for (var entry in ibukota.entries) {
+    print('${entry.key} → ${entry.value}');
+  }
+  // Indonesia → Jakarta
+  // Jepang → Tokyo
+  // Korea → Seoul
+}
+```
+
+### forEach
+
+Method `forEach` pada koleksi juga bisa digunakan untuk iterasi, meskipun `for-in` umumnya lebih direkomendasikan karena mendukung `break` dan `continue`.
+
+```dart
+void main() {
+  var angka = [10, 20, 30, 40, 50];
+
+  // forEach dengan anonymous function
+  angka.forEach((n) {
+    print('Nilai: $n');
+  });
+
+  // forEach dengan arrow function
+  angka.forEach((n) => print('Nilai: $n'));
+}
+```
+
+### Nested For Loop
+
+```dart
+void main() {
+  // Mencetak tabel perkalian 1-3
+  for (int i = 1; i <= 3; i++) {
+    for (int j = 1; j <= 5; j++) {
+      print('$i x $j = ${i * j}');
+    }
+    print('---');
+  }
+}
+```
+
+## While Loop
+
+Perulangan `while` mengeksekusi blok kode **selama kondisi bernilai true**. Kondisi diperiksa **sebelum** setiap iterasi.
+
+```dart
+void main() {
+  // Hitung mundur
+  int hitungan = 5;
+
+  while (hitungan > 0) {
+    print('Hitung mundur: $hitungan');
+    hitungan--;
+  }
+  print('Mulai!');
+
+  // Contoh: cari angka pertama yang habis dibagi 7 dan 3
+  int angka = 1;
+  while (angka % 7 != 0 || angka % 3 != 0) {
+    angka++;
+  }
+  print('Angka pertama habis dibagi 7 dan 3: $angka'); // 21
+}
+```
+
+### While dengan Kondisi Kompleks
+
+```dart
+void main() {
+  // Simulasi saldo ATM
+  double saldo = 100000;
+  double penarikan = 25000;
+  int transaksi = 0;
+
+  while (saldo >= penarikan) {
+    saldo -= penarikan;
+    transaksi++;
+    print('Transaksi $transaksi: Sisa saldo Rp$saldo');
+  }
+  print('Total transaksi: $transaksi');
+  // Transaksi 1: Sisa saldo Rp75000.0
+  // Transaksi 2: Sisa saldo Rp50000.0
+  // Transaksi 3: Sisa saldo Rp25000.0
+  // Transaksi 4: Sisa saldo Rp0.0
+  // Total transaksi: 4
+}
+```
+
+## Do-While Loop
+
+Perulangan `do-while` mirip dengan `while`, tetapi blok kode dieksekusi **minimal satu kali** karena kondisi diperiksa **setelah** iterasi.
+
+```dart
+void main() {
+  int angka = 10;
+
+  // Blok kode dijalankan dulu, baru kondisi dicek
+  do {
+    print('Angka: $angka');
+    angka++;
+  } while (angka < 10);
+  // Output: Angka: 10
+  // (dijalankan sekali meskipun kondisi langsung false)
+}
+```
+
+### Perbedaan While vs Do-While
+
+```dart
+void main() {
+  int x = 100;
+
+  // while — tidak akan mencetak apapun karena kondisi langsung false
+  print('--- while ---');
+  while (x < 10) {
+    print('while: $x');
+    x++;
+  }
+
+  // do-while — mencetak sekali meskipun kondisi false
+  print('--- do-while ---');
+  do {
+    print('do-while: $x');
+    x++;
+  } while (x < 10);
+  // Output:
+  // --- while ---
+  // --- do-while ---
+  // do-while: 100
+}
+```
+
+### Contoh Praktis Do-While
+
+```dart
+void main() {
+  // Simulasi validasi input — proses minimal sekali
+  var inputs = ['', '', 'Budi']; // Simulasi input berurutan
+  int percobaan = 0;
+  String nama;
+
+  do {
+    nama = inputs[percobaan];
+    percobaan++;
+    if (nama.isEmpty) {
+      print('Percobaan $percobaan: Input kosong, coba lagi');
+    }
+  } while (nama.isEmpty && percobaan < inputs.length);
+
+  if (nama.isNotEmpty) {
+    print('Input diterima: $nama (percobaan ke-$percobaan)');
+  }
+  // Percobaan 1: Input kosong, coba lagi
+  // Percobaan 2: Input kosong, coba lagi
+  // Input diterima: Budi (percobaan ke-3)
+}
+```
+
+## Break dan Continue
+
+### Break
+
+`break` menghentikan perulangan secara langsung, keluar dari loop saat itu juga.
+
+```dart
+void main() {
+  // Cari angka pertama yang habis dibagi 13
+  for (int i = 1; i <= 100; i++) {
+    if (i % 13 == 0) {
+      print('Ditemukan: $i');
+      break; // Keluar dari loop
+    }
+  }
+  // Output: Ditemukan: 13
+
+  // Break pada while loop
+  int n = 0;
+  while (true) {
+    if (n >= 5) break;
+    print(n);
+    n++;
+  }
+  // 0, 1, 2, 3, 4
+}
+```
+
+### Continue
+
+`continue` melewati sisa kode di iterasi saat ini dan langsung lanjut ke iterasi berikutnya.
+
+```dart
+void main() {
+  // Cetak hanya angka ganjil dari 1-10
+  for (int i = 1; i <= 10; i++) {
+    if (i % 2 == 0) continue; // Lewati angka genap
+    print(i);
+  }
+  // 1, 3, 5, 7, 9
+
+  // Lewati item tertentu dalam list
+  var tugas = ['Belajar', 'SKIP', 'Olahraga', 'SKIP', 'Membaca'];
+
+  for (var item in tugas) {
+    if (item == 'SKIP') continue;
+    print('Tugas: $item');
+  }
+  // Tugas: Belajar
+  // Tugas: Olahraga
+  // Tugas: Membaca
+}
+```
+
+### Break dan Continue dengan Label
+
+Untuk nested loop, Anda bisa menggunakan **label** untuk menentukan loop mana yang ingin di-`break` atau di-`continue`.
+
+```dart
+void main() {
+  // Break dengan label — keluar dari outer loop
+  outerLoop:
+  for (int i = 1; i <= 3; i++) {
+    for (int j = 1; j <= 3; j++) {
+      if (i == 2 && j == 2) {
+        print('Break di i=$i, j=$j');
+        break outerLoop; // Keluar dari kedua loop
+      }
+      print('i=$i, j=$j');
+    }
+  }
+  // i=1, j=1
+  // i=1, j=2
+  // i=1, j=3
+  // i=2, j=1
+  // Break di i=2, j=2
+}
+```
+
+## Assertions
+
+`assert` digunakan untuk memverifikasi kondisi saat development. Jika kondisi bernilai `false`, program akan melempar error. Assertions **hanya aktif di mode debug** dan diabaikan di mode production.
+
+```dart
+void main() {
+  int umur = 25;
+
+  // Assert bahwa umur harus positif
+  assert(umur > 0, 'Umur harus lebih dari 0');
+
+  // Assert dengan pesan kustom
+  String url = 'https://dart.dev';
+  assert(url.startsWith('https'), 'URL harus menggunakan HTTPS');
+
+  print('Semua assertion berhasil');
+}
+```
+
+### Kapan Menggunakan Assert
+
+```dart
+// Assert berguna untuk memvalidasi asumsi saat development
+double hitungDiskon(double harga, double persen) {
+  assert(harga >= 0, 'Harga tidak boleh negatif');
+  assert(persen >= 0 && persen <= 100, 'Persen harus antara 0-100');
+
+  return harga * (1 - persen / 100);
+}
+
+void main() {
+  print(hitungDiskon(100000, 20)); // 80000.0
+
+  // Di mode debug, baris berikut akan melempar AssertionError:
+  // hitungDiskon(-500, 20);  // AssertionError: Harga tidak boleh negatif
+}
+```
+
+## Ringkasan
+
+| Struktur | Kegunaan | Kapan Digunakan |
+|----------|----------|-----------------|
+| `if/else` | Percabangan berdasarkan kondisi | Keputusan sederhana hingga menengah |
+| Ternary `? :` | Percabangan satu baris | Menentukan nilai berdasarkan kondisi |
+| `switch/case` | Mencocokkan satu nilai dengan banyak kemungkinan | Banyak perbandingan terhadap satu variabel |
+| Switch expression | Switch yang mengembalikan nilai (Dart 3) | Mapping nilai secara ringkas |
+| `for` | Perulangan dengan jumlah iterasi yang diketahui | Iterasi berdasarkan index atau counter |
+| `for-in` | Iterasi elemen koleksi | Mengakses setiap elemen List, Set, Map |
+| `while` | Perulangan selama kondisi true | Jumlah iterasi belum diketahui |
+| `do-while` | Perulangan minimal satu kali | Proses yang harus dijalankan minimal sekali |
+| `break` | Menghentikan perulangan | Keluar dari loop lebih awal |
+| `continue` | Melewati iterasi saat ini | Melewati elemen tertentu |
+| `assert` | Validasi kondisi saat development | Memastikan asumsi kode benar |
+
+Memahami control flow adalah kunci untuk menulis program yang dinamis dan responsif. Dengan menguasai percabangan dan perulangan, Anda bisa menangani berbagai skenario logika dalam aplikasi Dart.
+
+Lanjutkan ke halaman [Class dan Object](/docs/tutorials/dart/class-dan-object) untuk mempelajari pemrograman berorientasi objek di Dart.

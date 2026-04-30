@@ -1,0 +1,455 @@
+---
+title: Fungsi
+description: Pelajari cara membuat dan menggunakan fungsi di Dart — mulai dari deklarasi dasar, parameter, return type, arrow function, hingga higher-order functions dan closures.
+---
+
+## Pengantar
+
+Fungsi adalah blok kode yang dapat dipanggil berulang kali untuk menjalankan tugas tertentu. Di Dart, fungsi adalah **first-class object** — artinya fungsi bisa disimpan dalam variabel, dikirim sebagai parameter, dan dikembalikan dari fungsi lain.
+
+Di halaman ini, Anda akan mempelajari berbagai cara mendeklarasikan dan menggunakan fungsi di Dart.
+
+## Deklarasi Fungsi Dasar
+
+Fungsi di Dart dideklarasikan dengan menentukan return type, nama fungsi, dan parameter (jika ada).
+
+```dart
+// Sintaks dasar:
+// ReturnType namaFungsi(parameter) {
+//   // body fungsi
+//   return nilai;
+// }
+
+String spiSalam(String nama) {
+  return 'Halo, $nama!';
+}
+
+void main() {
+  String pesan = spiSalam('Budi');
+  print(pesan); // Halo, Budi!
+}
+```
+
+Jika fungsi tidak mengembalikan nilai, gunakan `void` sebagai return type.
+
+```dart
+void cetakSalam(String nama) {
+  print('Selamat datang, $nama!');
+}
+
+void main() {
+  cetakSalam('Siti'); // Selamat datang, Siti!
+}
+```
+
+## Return Type
+
+Dart mendukung berbagai return type. Anda bisa mengembalikan tipe data apapun dari sebuah fungsi.
+
+```dart
+// Mengembalikan int
+int tambah(int a, int b) {
+  return a + b;
+}
+
+// Mengembalikan double
+double hitungRataRata(List<int> angka) {
+  int total = angka.reduce((a, b) => a + b);
+  return total / angka.length;
+}
+
+// Mengembalikan String
+String formatNama(String depan, String belakang) {
+  return '$depan $belakang';
+}
+
+// Mengembalikan bool
+bool adalahGenap(int angka) {
+  return angka % 2 == 0;
+}
+
+// Mengembalikan List
+List<int> ambilGenap(List<int> angka) {
+  return angka.where((n) => n % 2 == 0).toList();
+}
+
+void main() {
+  print(tambah(3, 5));                    // 8
+  print(hitungRataRata([80, 90, 70]));    // 80.0
+  print(formatNama('Andi', 'Pratama'));    // Andi Pratama
+  print(adalahGenap(4));                  // true
+  print(ambilGenap([1, 2, 3, 4, 5, 6])); // [2, 4, 6]
+}
+```
+
+Dart juga mendukung **type inference** pada fungsi. Anda bisa menghilangkan return type dan Dart akan menyimpulkannya secara otomatis. Namun, menuliskan return type secara eksplisit sangat direkomendasikan untuk kejelasan kode.
+
+## Parameter Positional
+
+Parameter positional adalah parameter yang urutannya penting saat pemanggilan fungsi. Ini adalah jenis parameter default di Dart.
+
+```dart
+// Semua parameter di sini adalah positional (wajib diisi)
+String buatPesan(String nama, int umur, String kota) {
+  return '$nama berumur $umur tahun dan tinggal di $kota';
+}
+
+void main() {
+  // Urutan argumen harus sesuai dengan urutan parameter
+  print(buatPesan('Andi', 25, 'Jakarta'));
+  // Andi berumur 25 tahun dan tinggal di Jakarta
+}
+```
+
+## Optional Positional Parameter
+
+Gunakan tanda kurung siku `[]` untuk membuat parameter positional yang opsional.
+
+```dart
+String spiSalam(String nama, [String? sapaan]) {
+  if (sapaan != null) {
+    return '$sapaan, $nama!';
+  }
+  return 'Halo, $nama!';
+}
+
+void main() {
+  print(spiSalam('Budi'));            // Halo, Budi!
+  print(spiSalam('Budi', 'Selamat pagi')); // Selamat pagi, Budi!
+}
+```
+
+## Named Parameter
+
+Named parameter dideklarasikan di dalam kurung kurawal `{}`. Saat memanggil fungsi, Anda menyebutkan nama parameter secara eksplisit — sehingga urutan tidak penting.
+
+```dart
+// Named parameter bersifat opsional secara default
+void cetakProfil({String? nama, int? umur, String? kota}) {
+  print('Nama: ${nama ?? "Tidak diketahui"}');
+  print('Umur: ${umur ?? 0}');
+  print('Kota: ${kota ?? "Tidak diketahui"}');
+}
+
+void main() {
+  // Urutan bebas karena menggunakan nama parameter
+  cetakProfil(kota: 'Bandung', nama: 'Siti', umur: 22);
+  print('---');
+  cetakProfil(nama: 'Andi'); // umur dan kota akan null
+}
+```
+
+### Required Named Parameter
+
+Gunakan keyword `required` untuk membuat named parameter yang wajib diisi.
+
+```dart
+void buatAkun({
+  required String email,
+  required String password,
+  String? nama,
+}) {
+  print('Akun dibuat untuk $email');
+  if (nama != null) {
+    print('Nama: $nama');
+  }
+}
+
+void main() {
+  buatAkun(email: 'budi@email.com', password: '12345');
+  // Akun dibuat untuk budi@email.com
+
+  buatAkun(email: 'siti@email.com', password: 'abcde', nama: 'Siti');
+  // Akun dibuat untuk siti@email.com
+  // Nama: Siti
+
+  // buatAkun(password: '12345'); // Error: 'email' is required
+}
+```
+
+## Default Value
+
+Anda bisa memberikan nilai default pada parameter opsional (baik positional maupun named).
+
+```dart
+// Default value pada optional positional parameter
+String spiSalam(String nama, [String sapaan = 'Halo']) {
+  return '$sapaan, $nama!';
+}
+
+// Default value pada named parameter
+double hitungDiskon({
+  required double harga,
+  double persenDiskon = 10.0,
+}) {
+  return harga * (1 - persenDiskon / 100);
+}
+
+void main() {
+  print(spiSalam('Budi'));              // Halo, Budi!
+  print(spiSalam('Budi', 'Hai'));       // Hai, Budi!
+
+  print(hitungDiskon(harga: 100000));                      // 90000.0
+  print(hitungDiskon(harga: 100000, persenDiskon: 25.0));  // 75000.0
+}
+```
+
+## Arrow Function
+
+Jika body fungsi hanya terdiri dari **satu ekspresi**, Anda bisa menggunakan sintaks arrow (`=>`) sebagai shorthand.
+
+```dart
+// Fungsi biasa
+int tambah(int a, int b) {
+  return a + b;
+}
+
+// Versi arrow function — lebih ringkas
+int tambahArrow(int a, int b) => a + b;
+
+// Contoh lain
+String spiSalam(String nama) => 'Halo, $nama!';
+bool adalahPositif(int angka) => angka > 0;
+double luasLingkaran(double r) => 3.14159 * r * r;
+
+void main() {
+  print(tambahArrow(3, 5));       // 8
+  print(spiSalam('Dart'));        // Halo, Dart!
+  print(adalahPositif(-3));       // false
+  print(luasLingkaran(7.0));      // 153.93791
+}
+```
+
+Arrow function juga bisa digunakan untuk fungsi `void`:
+
+```dart
+void cetakHalo() => print('Halo!');
+
+void main() {
+  cetakHalo(); // Halo!
+}
+```
+
+## Anonymous Function (Lambda)
+
+Anonymous function adalah fungsi tanpa nama. Sering digunakan sebagai argumen untuk fungsi lain, terutama pada operasi koleksi.
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+
+  // Anonymous function sebagai argumen forEach
+  angka.forEach((n) {
+    print('Angka: $n');
+  });
+
+  // Anonymous function dengan arrow syntax
+  var kaliDua = angka.map((n) => n * 2).toList();
+  print(kaliDua); // [2, 4, 6, 8, 10]
+
+  // Menyimpan anonymous function dalam variabel
+  var kuadrat = (int n) => n * n;
+  print(kuadrat(5)); // 25
+
+  // Anonymous function multi-baris
+  var proses = (int n) {
+    var hasil = n * n;
+    return 'Kuadrat dari $n adalah $hasil';
+  };
+  print(proses(4)); // Kuadrat dari 4 adalah 16
+}
+```
+
+## Higher-Order Function
+
+Higher-order function adalah fungsi yang menerima fungsi lain sebagai parameter atau mengembalikan fungsi. Konsep ini sangat penting di Dart dan banyak digunakan dalam Flutter.
+
+### Fungsi Sebagai Parameter
+
+```dart
+// Fungsi yang menerima fungsi lain sebagai parameter
+void prosesAngka(List<int> angka, Function(int) aksi) {
+  for (var n in angka) {
+    aksi(n);
+  }
+}
+
+// Fungsi yang menerima fungsi transformasi
+List<int> transformasi(List<int> angka, int Function(int) transform) {
+  return angka.map(transform).toList();
+}
+
+void main() {
+  var data = [1, 2, 3, 4, 5];
+
+  // Mengirim anonymous function sebagai argumen
+  prosesAngka(data, (n) {
+    print('Memproses: $n');
+  });
+
+  // Mengirim arrow function sebagai argumen
+  var hasil = transformasi(data, (n) => n * 3);
+  print(hasil); // [3, 6, 9, 12, 15]
+
+  // Mengirim fungsi bernama sebagai argumen
+  var hasilKuadrat = transformasi(data, kuadrat);
+  print(hasilKuadrat); // [1, 4, 9, 16, 25]
+}
+
+int kuadrat(int n) => n * n;
+```
+
+### Fungsi yang Mengembalikan Fungsi
+
+```dart
+// Fungsi yang mengembalikan fungsi lain
+Function(int) buatPengali(int faktor) {
+  return (int angka) => angka * faktor;
+}
+
+void main() {
+  var kaliTiga = buatPengali(3);
+  var kaliLima = buatPengali(5);
+
+  print(kaliTiga(10)); // 30
+  print(kaliLima(10)); // 50
+
+  // Bisa juga dipanggil langsung
+  print(buatPengali(2)(7)); // 14
+}
+```
+
+### Contoh Praktis: Filter dan Sort
+
+```dart
+// Fungsi filter generik
+List<T> filterData<T>(List<T> data, bool Function(T) kondisi) {
+  return data.where(kondisi).toList();
+}
+
+void main() {
+  var angka = [12, 5, 23, 8, 17, 3, 30, 11];
+
+  // Filter angka genap
+  var genap = filterData(angka, (n) => n % 2 == 0);
+  print('Genap: $genap'); // Genap: [12, 8, 30]
+
+  // Filter angka > 10
+  var besarDari10 = filterData(angka, (n) => n > 10);
+  print('> 10: $besarDari10'); // > 10: [12, 23, 17, 30, 11]
+
+  // Sort dengan custom comparator
+  var nama = ['Citra', 'Andi', 'Budi', 'Dina'];
+  nama.sort((a, b) => a.compareTo(b));
+  print(nama); // [Andi, Budi, Citra, Dina]
+}
+```
+
+## Closure
+
+Closure adalah fungsi yang "mengingat" variabel dari scope tempat ia didefinisikan, meskipun fungsi tersebut dipanggil di luar scope aslinya.
+
+```dart
+Function buatPenghitung() {
+  int hitungan = 0; // Variabel lokal
+
+  return () {
+    hitungan++;
+    return hitungan;
+  };
+  // Fungsi yang dikembalikan tetap bisa mengakses 'hitungan'
+}
+
+void main() {
+  var penghitung1 = buatPenghitung();
+  var penghitung2 = buatPenghitung();
+
+  // Setiap closure memiliki salinan variabel sendiri
+  print(penghitung1()); // 1
+  print(penghitung1()); // 2
+  print(penghitung1()); // 3
+
+  print(penghitung2()); // 1 — independen dari penghitung1
+  print(penghitung2()); // 2
+}
+```
+
+### Contoh Closure dalam Praktik
+
+```dart
+// Closure untuk membuat validator
+Function(String) buatValidator(int panjangMinimal) {
+  return (String input) {
+    if (input.length >= panjangMinimal) {
+      return '$input: Valid (>= $panjangMinimal karakter)';
+    }
+    return '$input: Tidak valid (< $panjangMinimal karakter)';
+  };
+}
+
+void main() {
+  var validasiPassword = buatValidator(8);
+  var validasiUsername = buatValidator(3);
+
+  print(validasiPassword('abc'));        // abc: Tidak valid (< 8 karakter)
+  print(validasiPassword('rahasia123')); // rahasia123: Valid (>= 8 karakter)
+  print(validasiUsername('AB'));          // AB: Tidak valid (< 3 karakter)
+  print(validasiUsername('Andi'));        // Andi: Valid (>= 3 karakter)
+}
+```
+
+## Fungsi Rekursif
+
+Fungsi rekursif adalah fungsi yang memanggil dirinya sendiri. Teknik ini berguna untuk menyelesaikan masalah yang bisa dipecah menjadi sub-masalah yang lebih kecil.
+
+```dart
+// Menghitung faktorial: n! = n × (n-1) × ... × 1
+int faktorial(int n) {
+  if (n <= 1) return 1;    // Base case
+  return n * faktorial(n - 1); // Recursive case
+}
+
+// Menghitung deret Fibonacci
+int fibonacci(int n) {
+  if (n <= 0) return 0;
+  if (n == 1) return 1;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+void main() {
+  print('5! = ${faktorial(5)}');   // 5! = 120
+  print('10! = ${faktorial(10)}'); // 10! = 3628800
+
+  // Cetak 8 angka pertama Fibonacci
+  for (var i = 0; i < 8; i++) {
+    print('fibonacci($i) = ${fibonacci(i)}');
+  }
+  // fibonacci(0) = 0
+  // fibonacci(1) = 1
+  // fibonacci(2) = 1
+  // fibonacci(3) = 2
+  // fibonacci(4) = 3
+  // fibonacci(5) = 5
+  // fibonacci(6) = 8
+  // fibonacci(7) = 13
+}
+```
+
+## Ringkasan
+
+| Konsep | Sintaks | Keterangan |
+|--------|---------|------------|
+| Fungsi dasar | `int tambah(int a, int b) { return a + b; }` | Deklarasi dengan return type eksplisit |
+| Void function | `void cetak(String s) { print(s); }` | Tidak mengembalikan nilai |
+| Arrow function | `int tambah(int a, int b) => a + b;` | Shorthand untuk satu ekspresi |
+| Optional positional | `void f(int a, [int? b])` | Parameter opsional dalam `[]` |
+| Named parameter | `void f({required int a, int? b})` | Parameter dengan nama dalam `{}` |
+| Default value | `void f({int x = 10})` | Nilai default jika tidak diisi |
+| Anonymous function | `(int n) => n * 2` | Fungsi tanpa nama (lambda) |
+| Higher-order function | `void f(int Function(int) aksi)` | Fungsi sebagai parameter |
+| Closure | Fungsi yang mengakses variabel dari scope luar | Mengingat state dari scope aslinya |
+| Rekursif | Fungsi yang memanggil dirinya sendiri | Butuh base case untuk berhenti |
+
+Fungsi adalah salah satu konsep terpenting di Dart. Dengan memahami berbagai jenis parameter, arrow function, dan higher-order function, Anda memiliki fondasi yang kuat untuk menulis kode Dart yang bersih dan modular — terutama saat bekerja dengan Flutter.
+
+Lanjutkan ke halaman [Control Flow](/docs/tutorials/dart/control-flow) untuk mempelajari struktur kontrol seperti `if/else`, `switch`, `for`, dan `while` di Dart.

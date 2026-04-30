@@ -1,0 +1,86 @@
+---
+title: Flutter Best Practices
+description: Panduan komprehensif tentang best practices pengembangan aplikasi Flutter, mencakup state management, struktur proyek, komposisi widget, optimasi performa, dan error handling.
+---
+
+## Selamat Datang di Flutter Best Practices
+
+Membangun aplikasi Flutter yang berkualitas tinggi bukan hanya tentang membuat fitur yang berfungsi — tetapi juga tentang menulis kode yang bersih, mudah di-maintain, dan performant. Panduan ini mengumpulkan best practices yang telah terbukti efektif dalam pengembangan aplikasi Flutter skala produksi.
+
+Setiap topik dalam seri ini dirancang untuk membantu Anda membangun kebiasaan coding yang baik sejak awal, sehingga proyek Flutter Anda tetap terstruktur dan scalable seiring bertambahnya kompleksitas.
+
+## Apa yang Akan Dipelajari
+
+Seri best practices ini mencakup topik-topik berikut:
+
+- **State Management** — Memahami berbagai pendekatan state management di Flutter (`setState`, Provider, Riverpod, BLoC) dan kapan menggunakan masing-masing.
+- **Project Structure** — Menerapkan struktur proyek yang scalable dan terorganisir untuk aplikasi Flutter dari kecil hingga besar.
+- **Widget Composition** — Menguasai teknik komposisi widget, pemisahan tanggung jawab, dan pembuatan komponen yang reusable.
+- **Performance Optimization** — Mengoptimalkan performa aplikasi dengan const constructors, lazy loading, dan strategi build optimization.
+- **Error Handling** — Menerapkan penanganan error yang robust dengan try-catch, custom exceptions, dan error boundaries.
+
+## Prasyarat
+
+Sebelum mempelajari best practices ini, pastikan Anda sudah memiliki:
+
+1. **Pemahaman dasar Dart** — Familiar dengan sintaks Dart, class, async/await, dan null safety. Jika belum, pelajari terlebih dahulu di [Tutorial Dart](/docs/tutorials/dart).
+2. **Flutter SDK** terinstal dan terkonfigurasi. Anda bisa mengikuti panduan instalasi di [flutter.dev](https://flutter.dev/docs/get-started/install).
+3. **Pengalaman dasar Flutter** — Sudah pernah membuat minimal satu aplikasi Flutter sederhana dan memahami konsep widget, `StatelessWidget`, dan `StatefulWidget`.
+
+## Mengapa Best Practices Penting?
+
+Dalam pengembangan Flutter, best practices membantu Anda:
+
+```dart
+// ❌ Tanpa best practices — semua logic di satu widget
+class MyApp extends StatefulWidget {
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  List<String> items = [];
+  bool isLoading = false;
+  String? error;
+
+  Future<void> fetchData() async {
+    setState(() => isLoading = true);
+    // fetch, parse, handle error... semua di sini
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // UI + logic bercampur
+    return Container(); // widget tree yang panjang dan sulit dibaca
+  }
+}
+```
+
+```dart
+// ✅ Dengan best practices — separation of concerns
+class ItemsPage extends StatelessWidget {
+  const ItemsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // UI terpisah dari logic, state dikelola dengan pattern yang jelas
+    return const ItemsView();
+  }
+}
+```
+
+Dengan menerapkan best practices, kode Anda menjadi lebih mudah dibaca, diuji, dan dikembangkan oleh tim.
+
+## Ringkasan Topik
+
+| Topik | Fokus Utama |
+|-------|-------------|
+| State Management | Memilih dan mengimplementasikan solusi state management yang tepat |
+| Project Structure | Mengorganisir file dan folder untuk scalability |
+| Widget Composition | Membangun UI modular dengan komponen reusable |
+| Performance Optimization | Menghindari rebuild yang tidak perlu dan mengoptimalkan rendering |
+| Error Handling | Menangani error secara graceful di seluruh aplikasi |
+
+## Mulai Belajar
+
+Siap untuk meningkatkan kualitas kode Flutter Anda? Lanjutkan ke halaman [State Management](/docs/tutorials/flutter-best-practices/state-management) untuk mempelajari cara mengelola state aplikasi dengan efektif.

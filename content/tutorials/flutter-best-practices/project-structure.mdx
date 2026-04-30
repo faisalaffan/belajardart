@@ -1,0 +1,871 @@
+---
+title: Project Structure
+description: Pelajari cara mengorganisir struktur proyek Flutter yang scalable — mulai dari struktur default, pendekatan feature-first vs layer-first, hingga contoh struktur untuk aplikasi kecil, menengah, dan besar. Terapkan naming conventions dan separation of concerns yang tepat.
+---
+
+## Pengantar
+
+Struktur proyek yang baik adalah fondasi dari aplikasi Flutter yang mudah di-maintain, di-scale, dan dikerjakan secara kolaboratif. Tanpa struktur yang jelas, proyek akan cepat menjadi berantakan seiring bertambahnya fitur — file sulit ditemukan, dependensi saling terkait, dan refactoring menjadi mimpi buruk.
+
+Di halaman ini, Anda akan mempelajari berbagai pendekatan untuk mengorganisir proyek Flutter, mulai dari aplikasi sederhana hingga aplikasi enterprise berskala besar.
+
+## Mengapa Struktur Proyek Penting?
+
+Bayangkan Anda bergabung dengan tim baru dan diminta memperbaiki bug di fitur checkout. Jika struktur proyek tidak jelas, Anda mungkin menghabiskan waktu berjam-jam hanya untuk menemukan file yang relevan. Struktur proyek yang baik membantu:
+
+- **Navigasi cepat** — Developer baru bisa menemukan file yang dicari dalam hitungan detik
+- **Separation of concerns** — Setiap bagian kode memiliki tanggung jawab yang jelas
+- **Scalability** — Mudah menambahkan fitur baru tanpa merusak yang sudah ada
+- **Kolaborasi tim** — Mengurangi konflik merge karena developer bekerja di area yang berbeda
+- **Testability** — Kode yang terstruktur lebih mudah diuji secara unit maupun integrasi
+
+```dart
+// ❌ Tanpa struktur yang jelas — semua file di satu folder
+// lib/
+//   main.dart
+//   home_screen.dart
+//   login_screen.dart
+//   user_model.dart
+//   api_service.dart
+//   cart_widget.dart
+//   theme.dart
+//   utils.dart
+//   constants.dart
+//   ... 50+ file lainnya
+
+// ✅ Dengan struktur yang jelas — terorganisir berdasarkan fitur/layer
+// lib/
+//   core/
+//   features/
+//     auth/
+//     home/
+//     cart/
+//   shared/
+```
+
+## Struktur Default Flutter
+
+Ketika Anda membuat proyek baru dengan `flutter create`, Flutter menghasilkan struktur berikut:
+
+```
+my_app/
+├── android/                # Konfigurasi platform Android
+├── ios/                    # Konfigurasi platform iOS
+├── lib/                    # Kode Dart utama
+│   └── main.dart           # Entry point aplikasi
+├── test/                   # Unit dan widget tests
+│   └── widget_test.dart
+├── pubspec.yaml            # Dependencies dan metadata
+├── pubspec.lock            # Lock file dependencies
+├── analysis_options.yaml   # Konfigurasi linter
+└── README.md
+```
+
+Struktur default ini cukup untuk aplikasi sangat sederhana, tetapi begitu aplikasi mulai berkembang, Anda perlu mengorganisir folder `lib/` dengan lebih baik.
+
+## Pendekatan Organisasi: Feature-First vs Layer-First
+
+Ada dua pendekatan utama untuk mengorganisir kode di dalam folder `lib/`:
+
+### Layer-First (Organisasi Berdasarkan Layer)
+
+Pendekatan ini mengelompokkan file berdasarkan **peran teknis** — semua model di satu folder, semua screen di folder lain, dan seterusnya.
+
+```
+lib/
+├── models/
+│   ├── user.dart
+│   ├── product.dart
+│   └── order.dart
+├── screens/
+│   ├── home_screen.dart
+│   ├── login_screen.dart
+│   └── product_detail_screen.dart
+├── widgets/
+│   ├── custom_button.dart
+│   └── product_card.dart
+├── services/
+│   ├── auth_service.dart
+│   └── api_service.dart
+├── providers/
+│   ├── auth_provider.dart
+│   └── cart_provider.dart
+└── main.dart
+```
+
+**Kelebihan:**
+- Mudah dipahami untuk pemula
+- Cocok untuk aplikasi kecil (kurang dari 10 screen)
+- Konsisten — semua file sejenis ada di satu tempat
+
+**Kekurangan:**
+- Tidak scalable — folder `screens/` dan `models/` akan membengkak
+- File yang saling terkait tersebar di banyak folder
+- Sulit menghapus atau memindahkan fitur secara utuh
+
+### Feature-First (Organisasi Berdasarkan Fitur)
+
+Pendekatan ini mengelompokkan file berdasarkan **fitur bisnis** — semua file yang terkait dengan satu fitur berada di satu folder.
+
+```
+lib/
+├── features/
+│   ├── auth/
+│   │   ├── data/
+│   │   │   ├── auth_repository.dart
+│   │   │   └── auth_remote_source.dart
+│   │   ├── domain/
+│   │   │   ├── user.dart
+│   │   │   └── auth_state.dart
+│   │   └── presentation/
+│   │       ├── login_screen.dart
+│   │       ├── register_screen.dart
+│   │       └── widgets/
+│   │           └── login_form.dart
+│   ├── home/
+│   │   ├── data/
+│   │   ├── domain/
+│   │   └── presentation/
+│   └── cart/
+│       ├── data/
+│       ├── domain/
+│       └── presentation/
+├── core/
+│   ├── theme/
+│   ├── network/
+│   └── constants/
+├── shared/
+│   └── widgets/
+└── main.dart
+```
+
+**Kelebihan:**
+- Sangat scalable — setiap fitur terisolasi
+- Mudah menambah, menghapus, atau memindahkan fitur
+- Mengurangi konflik merge dalam tim besar
+- Mendukung separation of concerns secara natural
+
+**Kekurangan:**
+- Sedikit lebih kompleks untuk dipahami di awal
+- Bisa ada duplikasi kecil antar fitur
+- Perlu disiplin untuk menjaga konsistensi
+
+### Rekomendasi
+
+| Ukuran Aplikasi | Pendekatan | Alasan |
+|-----------------|------------|--------|
+| Kecil (1-5 screen) | Layer-first | Sederhana, cepat setup |
+| Menengah (5-20 screen) | Feature-first sederhana | Mulai butuh isolasi fitur |
+| Besar (20+ screen) | Feature-first + Clean Architecture | Scalability dan maintainability maksimal |
+
+## Contoh Struktur: Aplikasi Kecil
+
+Untuk aplikasi kecil seperti todo list atau weather app, layer-first sudah cukup:
+
+```
+lib/
+├── models/
+│   └── todo.dart
+├── screens/
+│   ├── home_screen.dart
+│   └── add_todo_screen.dart
+├── widgets/
+│   └── todo_tile.dart
+├── services/
+│   └── storage_service.dart
+└── main.dart
+```
+
+Contoh model sederhana:
+
+```dart
+class Todo {
+  final String id;
+  final String title;
+  final bool isCompleted;
+  final DateTime createdAt;
+
+  const Todo({
+    required this.id,
+    required this.title,
+    this.isCompleted = false,
+    required this.createdAt,
+  });
+
+  Todo copyWith({
+    String? title,
+    bool? isCompleted,
+  }) {
+    return Todo(
+      id: id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+      createdAt: createdAt,
+    );
+  }
+}
+```
+
+## Contoh Struktur: Aplikasi Menengah
+
+Untuk aplikasi menengah seperti e-commerce sederhana atau social media app, gunakan feature-first:
+
+```
+lib/
+├── app/
+│   ├── app.dart                    # MaterialApp configuration
+│   └── routes.dart                 # Route definitions
+├── core/
+│   ├── constants/
+│   │   ├── app_colors.dart
+│   │   ├── app_strings.dart
+│   │   └── api_endpoints.dart
+│   ├── theme/
+│   │   ├── app_theme.dart
+│   │   └── text_styles.dart
+│   ├── network/
+│   │   ├── api_client.dart
+│   │   └── api_exceptions.dart
+│   └── utils/
+│       ├── validators.dart
+│       └── formatters.dart
+├── features/
+│   ├── auth/
+│   │   ├── models/
+│   │   │   └── user.dart
+│   │   ├── services/
+│   │   │   └── auth_service.dart
+│   │   ├── providers/
+│   │   │   └── auth_provider.dart
+│   │   ├── screens/
+│   │   │   ├── login_screen.dart
+│   │   │   └── register_screen.dart
+│   │   └── widgets/
+│   │       ├── login_form.dart
+│   │       └── social_login_button.dart
+│   ├── products/
+│   │   ├── models/
+│   │   │   └── product.dart
+│   │   ├── services/
+│   │   │   └── product_service.dart
+│   │   ├── providers/
+│   │   │   └── product_provider.dart
+│   │   ├── screens/
+│   │   │   ├── product_list_screen.dart
+│   │   │   └── product_detail_screen.dart
+│   │   └── widgets/
+│   │       └── product_card.dart
+│   └── cart/
+│       ├── models/
+│       ├── services/
+│       ├── providers/
+│       ├── screens/
+│       └── widgets/
+├── shared/
+│   └── widgets/
+│       ├── custom_button.dart
+│       ├── loading_indicator.dart
+│       └── error_widget.dart
+└── main.dart
+```
+
+Contoh konfigurasi routing:
+
+```dart
+import 'package:flutter/material.dart';
+import '../features/auth/screens/login_screen.dart';
+import '../features/auth/screens/register_screen.dart';
+import '../features/products/screens/product_list_screen.dart';
+import '../features/products/screens/product_detail_screen.dart';
+import '../features/cart/screens/cart_screen.dart';
+
+class AppRoutes {
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String products = '/products';
+  static const String productDetail = '/products/detail';
+  static const String cart = '/cart';
+
+  static Route<dynamic> generateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case login:
+        return MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        );
+      case register:
+        return MaterialPageRoute(
+          builder: (_) => const RegisterScreen(),
+        );
+      case products:
+        return MaterialPageRoute(
+          builder: (_) => const ProductListScreen(),
+        );
+      case productDetail:
+        final productId = settings.arguments as String;
+        return MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(productId: productId),
+        );
+      case cart:
+        return MaterialPageRoute(
+          builder: (_) => const CartScreen(),
+        );
+      default:
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Route not found')),
+          ),
+        );
+    }
+  }
+}
+```
+
+## Contoh Struktur: Aplikasi Besar (Clean Architecture)
+
+Untuk aplikasi besar atau enterprise, gunakan feature-first dengan **Clean Architecture** — memisahkan kode menjadi tiga layer utama: **data**, **domain**, dan **presentation**.
+
+```
+lib/
+├── app/
+│   ├── app.dart
+│   ├── routes/
+│   │   ├── app_router.dart
+│   │   └── route_guards.dart
+│   └── di/
+│       └── injection_container.dart   # Dependency injection setup
+├── core/
+│   ├── error/
+│   │   ├── exceptions.dart
+│   │   └── failures.dart
+│   ├── network/
+│   │   ├── api_client.dart
+│   │   ├── interceptors/
+│   │   │   ├── auth_interceptor.dart
+│   │   │   └── logging_interceptor.dart
+│   │   └── network_info.dart
+│   ├── theme/
+│   │   ├── app_theme.dart
+│   │   └── app_colors.dart
+│   ├── constants/
+│   │   └── api_constants.dart
+│   └── usecases/
+│       └── usecase.dart               # Base UseCase interface
+├── features/
+│   ├── auth/
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── auth_remote_source.dart
+│   │   │   │   └── auth_local_source.dart
+│   │   │   ├── models/
+│   │   │   │   └── user_model.dart    # JSON serialization
+│   │   │   └── repositories/
+│   │   │       └── auth_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   └── user.dart          # Pure entity (no dependencies)
+│   │   │   ├── repositories/
+│   │   │   │   └── auth_repository.dart  # Abstract interface
+│   │   │   └── usecases/
+│   │   │       ├── login.dart
+│   │   │       ├── register.dart
+│   │   │       └── get_current_user.dart
+│   │   └── presentation/
+│   │       ├── bloc/
+│   │       │   ├── auth_bloc.dart
+│   │       │   ├── auth_event.dart
+│   │       │   └── auth_state.dart
+│   │       ├── screens/
+│   │       │   ├── login_screen.dart
+│   │       │   └── register_screen.dart
+│   │       └── widgets/
+│   │           ├── login_form.dart
+│   │           └── auth_button.dart
+│   └── products/
+│       ├── data/
+│       │   ├── datasources/
+│       │   ├── models/
+│       │   └── repositories/
+│       ├── domain/
+│       │   ├── entities/
+│       │   ├── repositories/
+│       │   └── usecases/
+│       └── presentation/
+│           ├── bloc/
+│           ├── screens/
+│           └── widgets/
+├── shared/
+│   ├── widgets/
+│   │   ├── app_button.dart
+│   │   ├── app_text_field.dart
+│   │   └── loading_overlay.dart
+│   └── extensions/
+│       ├── context_extensions.dart
+│       └── string_extensions.dart
+└── main.dart
+```
+
+### Separation of Concerns: Tiga Layer Utama
+
+Setiap fitur dalam Clean Architecture dibagi menjadi tiga layer:
+
+**1. Domain Layer** — Inti bisnis logic, tidak bergantung pada framework apapun.
+
+```dart
+// features/auth/domain/entities/user.dart
+// Entity murni — tidak tahu tentang JSON, database, atau Flutter
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final DateTime createdAt;
+
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.createdAt,
+  });
+}
+
+// features/auth/domain/repositories/auth_repository.dart
+// Interface abstrak — implementasi ada di data layer
+abstract class AuthRepository {
+  Future<User> login(String email, String password);
+  Future<User> register(String name, String email, String password);
+  Future<User?> getCurrentUser();
+  Future<void> logout();
+}
+
+// features/auth/domain/usecases/login.dart
+// UseCase — satu aksi bisnis yang spesifik
+class LoginUseCase {
+  final AuthRepository repository;
+
+  const LoginUseCase(this.repository);
+
+  Future<User> call(String email, String password) {
+    return repository.login(email, password);
+  }
+}
+```
+
+**2. Data Layer** — Implementasi akses data (API, database, cache).
+
+```dart
+// features/auth/data/models/user_model.dart
+// Model dengan serialization — extends atau maps ke entity
+import '../../domain/entities/user.dart';
+
+class UserModel {
+  final String id;
+  final String name;
+  final String email;
+  final DateTime createdAt;
+
+  const UserModel({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.createdAt,
+  });
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  // Konversi ke domain entity
+  User toEntity() {
+    return User(
+      id: id,
+      name: name,
+      email: email,
+      createdAt: createdAt,
+    );
+  }
+}
+
+// features/auth/data/repositories/auth_repository_impl.dart
+// Implementasi konkret dari interface di domain layer
+import '../../domain/entities/user.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../datasources/auth_remote_source.dart';
+import '../datasources/auth_local_source.dart';
+
+class AuthRepositoryImpl implements AuthRepository {
+  final AuthRemoteSource remoteSource;
+  final AuthLocalSource localSource;
+
+  const AuthRepositoryImpl({
+    required this.remoteSource,
+    required this.localSource,
+  });
+
+  @override
+  Future<User> login(String email, String password) async {
+    final userModel = await remoteSource.login(email, password);
+    await localSource.cacheUser(userModel);
+    return userModel.toEntity();
+  }
+
+  @override
+  Future<User> register(String name, String email, String password) async {
+    final userModel = await remoteSource.register(name, email, password);
+    await localSource.cacheUser(userModel);
+    return userModel.toEntity();
+  }
+
+  @override
+  Future<User?> getCurrentUser() async {
+    final cachedUser = await localSource.getCachedUser();
+    return cachedUser?.toEntity();
+  }
+
+  @override
+  Future<void> logout() async {
+    await remoteSource.logout();
+    await localSource.clearCache();
+  }
+}
+```
+
+**3. Presentation Layer** — UI dan state management.
+
+```dart
+// features/auth/presentation/bloc/auth_bloc.dart
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/usecases/login.dart';
+
+// Events
+sealed class AuthEvent {}
+
+class LoginSubmitted extends AuthEvent {
+  final String email;
+  final String password;
+
+  LoginSubmitted({required this.email, required this.password});
+}
+
+// States
+sealed class AuthState {}
+
+class AuthInitial extends AuthState {}
+
+class AuthLoading extends AuthState {}
+
+class AuthSuccess extends AuthState {
+  final String userName;
+
+  AuthSuccess({required this.userName});
+}
+
+class AuthFailure extends AuthState {
+  final String message;
+
+  AuthFailure({required this.message});
+}
+
+// BLoC — hanya bergantung pada UseCase, bukan pada data layer langsung
+class AuthBloc extends Bloc<AuthEvent, AuthState> {
+  final LoginUseCase loginUseCase;
+
+  AuthBloc({required this.loginUseCase}) : super(AuthInitial()) {
+    on<LoginSubmitted>(_onLoginSubmitted);
+  }
+
+  Future<void> _onLoginSubmitted(
+    LoginSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      final user = await loginUseCase(event.email, event.password);
+      emit(AuthSuccess(userName: user.name));
+    } catch (e) {
+      emit(AuthFailure(message: e.toString()));
+    }
+  }
+}
+```
+
+### Diagram Dependency Rule
+
+Aturan paling penting dalam Clean Architecture: **dependency hanya boleh mengarah ke dalam** (dari presentation → domain ← data).
+
+```
+┌─────────────────────────────────────────┐
+│           Presentation Layer            │
+│  (Screens, Widgets, BLoC/Provider)      │
+│         ↓ depends on ↓                  │
+├─────────────────────────────────────────┤
+│             Domain Layer                │
+│   (Entities, Repositories, UseCases)    │
+│         ↑ depends on ↑                  │
+├─────────────────────────────────────────┤
+│              Data Layer                 │
+│  (Models, DataSources, Repo Impl)       │
+└─────────────────────────────────────────┘
+
+Domain layer TIDAK bergantung pada layer manapun.
+Presentation dan Data bergantung pada Domain.
+```
+
+## Naming Conventions
+
+Konsistensi penamaan file dan class sangat penting untuk navigasi proyek. Berikut konvensi yang direkomendasikan:
+
+### File Naming
+
+Gunakan **snake_case** untuk semua nama file Dart (ini adalah konvensi resmi Dart):
+
+```dart
+// ✅ Benar — snake_case
+// user_model.dart
+// auth_repository.dart
+// login_screen.dart
+// product_card_widget.dart
+
+// ❌ Salah — camelCase atau PascalCase untuk nama file
+// userModel.dart
+// AuthRepository.dart
+// LoginScreen.dart
+```
+
+### Suffix Conventions
+
+Gunakan suffix yang konsisten untuk menunjukkan peran file:
+
+```
+// Models & Entities
+user.dart                    # Domain entity
+user_model.dart              # Data model (with serialization)
+
+// Repositories
+auth_repository.dart         # Abstract interface (domain)
+auth_repository_impl.dart    # Concrete implementation (data)
+
+// Data Sources
+auth_remote_source.dart      # API calls
+auth_local_source.dart       # Local storage/cache
+
+// State Management
+auth_bloc.dart               # BLoC
+auth_event.dart              # BLoC events
+auth_state.dart              # BLoC states
+auth_provider.dart           # Provider/Riverpod
+
+// UI
+login_screen.dart            # Full screen/page
+login_form.dart              # Complex widget section
+product_card.dart            # Reusable widget component
+
+// Utilities
+validators.dart              # Validation functions
+formatters.dart              # Formatting functions
+string_extensions.dart       # Extension methods
+```
+
+### Class Naming
+
+```dart
+// ✅ Benar — PascalCase, deskriptif, dengan suffix yang jelas
+class UserModel { }
+class AuthRepository { }
+class AuthRepositoryImpl implements AuthRepository { }
+class LoginScreen extends StatelessWidget { }
+class ProductCard extends StatelessWidget { }
+class AuthBloc extends Bloc<AuthEvent, AuthState> { }
+
+// ❌ Kurang baik — nama tidak deskriptif
+class Data { }
+class Manager { }
+class Helper { }
+class Info { }
+```
+
+## Barrel Files (index.dart)
+
+Barrel files adalah file yang mengekspor ulang (re-export) semua file publik dari sebuah folder. Ini menyederhanakan import statements.
+
+### Tanpa Barrel File
+
+```dart
+// Tanpa barrel file — import panjang dan banyak
+import 'package:my_app/features/auth/domain/entities/user.dart';
+import 'package:my_app/features/auth/domain/repositories/auth_repository.dart';
+import 'package:my_app/features/auth/domain/usecases/login.dart';
+import 'package:my_app/features/auth/domain/usecases/register.dart';
+```
+
+### Dengan Barrel File
+
+```dart
+// features/auth/domain/domain.dart (barrel file)
+export 'entities/user.dart';
+export 'repositories/auth_repository.dart';
+export 'usecases/login.dart';
+export 'usecases/register.dart';
+```
+
+```dart
+// Sekarang cukup satu import
+import 'package:my_app/features/auth/domain/domain.dart';
+```
+
+### Kapan Menggunakan Barrel Files
+
+```dart
+// ✅ Gunakan barrel files untuk:
+// - Public API dari sebuah fitur/modul
+// - Shared widgets yang sering diimpor bersama
+// - Core utilities
+
+// shared/widgets/widgets.dart
+export 'app_button.dart';
+export 'app_text_field.dart';
+export 'loading_overlay.dart';
+export 'error_widget.dart';
+
+// ❌ Hindari barrel files untuk:
+// - File internal yang hanya digunakan dalam satu fitur
+// - Re-export yang terlalu dalam (barrel of barrels)
+// - File yang jarang diimpor bersama
+```
+
+### Tips Barrel File
+
+- Beri nama barrel file sesuai nama folder-nya (misalnya `widgets.dart` di folder `widgets/`)
+- Jangan buat barrel file yang terlalu besar — pecah per sub-modul jika perlu
+- Hati-hati dengan circular imports — barrel files bisa menyebabkan ini jika tidak dikelola dengan baik
+
+## Best Practices
+
+### 1. Mulai Sederhana, Refactor Saat Dibutuhkan
+
+Jangan langsung menerapkan Clean Architecture untuk aplikasi todo list. Mulai dengan struktur sederhana dan refactor ketika kompleksitas meningkat.
+
+```dart
+// Tahap 1: Aplikasi baru — layer-first sederhana
+// lib/
+//   models/
+//   screens/
+//   services/
+//   main.dart
+
+// Tahap 2: Aplikasi berkembang — migrasi ke feature-first
+// lib/
+//   features/
+//     auth/
+//     products/
+//   core/
+//   shared/
+//   main.dart
+
+// Tahap 3: Aplikasi besar — tambahkan Clean Architecture layers
+// lib/
+//   features/
+//     auth/
+//       data/
+//       domain/
+//       presentation/
+//   core/
+//   shared/
+//   main.dart
+```
+
+### 2. Satu File, Satu Tanggung Jawab
+
+Setiap file sebaiknya hanya berisi satu class atau satu kelompok fungsi yang terkait erat.
+
+```dart
+// ❌ Kurang baik — banyak class tidak terkait dalam satu file
+// models.dart
+class User { }
+class Product { }
+class Order { }
+class CartItem { }
+
+// ✅ Lebih baik — satu class per file
+// user.dart
+class User { }
+
+// product.dart
+class Product { }
+```
+
+### 3. Jaga Folder `core/` Tetap Minimal
+
+Folder `core/` hanya untuk kode yang benar-benar digunakan di seluruh aplikasi. Jangan jadikan tempat pembuangan.
+
+```dart
+// ✅ Cocok untuk core/
+// - Theme dan styling global
+// - Network client dan interceptors
+// - Error handling base classes
+// - Constants yang digunakan di mana-mana
+
+// ❌ Tidak cocok untuk core/
+// - Widget yang hanya digunakan di 1-2 fitur → pindahkan ke shared/ atau fitur itu sendiri
+// - Logic bisnis spesifik → pindahkan ke fitur terkait
+```
+
+### 4. Gunakan Relative Imports dalam Fitur
+
+Dalam satu fitur, gunakan relative imports. Untuk cross-feature, gunakan package imports.
+
+```dart
+// Di dalam features/auth/presentation/screens/login_screen.dart
+
+// ✅ Relative import untuk file dalam fitur yang sama
+import '../widgets/login_form.dart';
+import '../../domain/usecases/login.dart';
+
+// ✅ Package import untuk file di luar fitur
+import 'package:my_app/core/theme/app_theme.dart';
+import 'package:my_app/shared/widgets/app_button.dart';
+```
+
+### 5. Hindari Circular Dependencies Antar Fitur
+
+Fitur tidak boleh saling bergantung secara langsung. Jika dua fitur perlu berkomunikasi, gunakan shared module atau event system.
+
+```dart
+// ❌ Circular dependency
+// features/auth/ imports from features/profile/
+// features/profile/ imports from features/auth/
+
+// ✅ Gunakan shared module
+// shared/models/user.dart — digunakan oleh auth dan profile
+// Atau gunakan dependency injection untuk menghubungkan fitur
+```
+
+## Ringkasan
+
+| Aspek | Rekomendasi |
+|-------|-------------|
+| Aplikasi kecil | Layer-first (models, screens, services) |
+| Aplikasi menengah | Feature-first (features/auth, features/products) |
+| Aplikasi besar | Feature-first + Clean Architecture (data, domain, presentation) |
+| Naming | snake_case untuk file, PascalCase untuk class |
+| Barrel files | Gunakan untuk public API modul, hindari untuk internal |
+| Core folder | Hanya untuk kode yang benar-benar global |
+| Imports | Relative dalam fitur, package untuk cross-feature |
+
+Struktur proyek yang baik bukan tentang mengikuti aturan secara kaku, tetapi tentang membuat kode mudah ditemukan, dipahami, dan diubah. Pilih pendekatan yang sesuai dengan ukuran dan kebutuhan proyek Anda, dan jangan ragu untuk refactor seiring berkembangnya aplikasi.
+
+## Selanjutnya
+
+Lanjutkan ke halaman [Widget Composition](/docs/tutorials/flutter-best-practices/widget-composition) untuk mempelajari cara membangun UI yang modular dengan komponen widget yang reusable dan terstruktur.

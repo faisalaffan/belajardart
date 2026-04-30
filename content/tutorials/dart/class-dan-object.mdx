@@ -1,0 +1,683 @@
+---
+title: Class dan Object
+description: Pelajari pemrograman berorientasi objek di Dart — mulai dari deklarasi class, constructor, properties, methods, inheritance, abstract class, interfaces, mixins, hingga static members.
+---
+
+## Pengantar
+
+Dart adalah bahasa pemrograman **berorientasi objek (OOP)**. Hampir semua hal di Dart adalah object — angka, string, fungsi, bahkan `null`. Setiap object adalah instance dari sebuah **class** yang mendefinisikan struktur dan perilakunya.
+
+Di halaman ini, Anda akan mempelajari cara membuat class, membuat object, menggunakan berbagai jenis constructor, serta konsep OOP penting seperti inheritance, abstract class, interfaces, dan mixins.
+
+## Deklarasi Class dan Membuat Object
+
+Class adalah blueprint (cetak biru) untuk membuat object. Di dalam class, Anda mendefinisikan **properties** (data) dan **methods** (perilaku).
+
+```dart
+// Deklarasi class sederhana
+class Mobil {
+  // Properties (atribut)
+  String merk = '';
+  String warna = '';
+  int tahun = 0;
+
+  // Method (perilaku)
+  void klakson() {
+    print('$merk: Beep beep!');
+  }
+
+  void info() {
+    print('$merk $warna tahun $tahun');
+  }
+}
+
+void main() {
+  // Membuat object (instance) dari class Mobil
+  var mobilku = Mobil();
+  mobilku.merk = 'Toyota';
+  mobilku.warna = 'Hitam';
+  mobilku.tahun = 2023;
+
+  mobilku.info();    // Toyota Hitam tahun 2023
+  mobilku.klakson(); // Toyota: Beep beep!
+
+  // Membuat object lain dari class yang sama
+  var mobilTeman = Mobil();
+  mobilTeman.merk = 'Honda';
+  mobilTeman.warna = 'Putih';
+  mobilTeman.tahun = 2024;
+
+  mobilTeman.info(); // Honda Putih tahun 2024
+}
+```
+
+## Properties dan Methods
+
+Properties menyimpan data, sedangkan methods mendefinisikan aksi yang bisa dilakukan object.
+
+```dart
+class Persegi {
+  double sisi;
+
+  // Constructor
+  Persegi(this.sisi);
+
+  // Method untuk menghitung luas
+  double hitungLuas() {
+    return sisi * sisi;
+  }
+
+  // Method untuk menghitung keliling
+  double hitungKeliling() {
+    return 4 * sisi;
+  }
+
+  // Method yang mengembalikan String
+  String deskripsi() {
+    return 'Persegi dengan sisi $sisi, luas ${hitungLuas()}, keliling ${hitungKeliling()}';
+  }
+}
+
+void main() {
+  var kotak = Persegi(5.0);
+
+  print(kotak.sisi);            // 5.0
+  print(kotak.hitungLuas());    // 25.0
+  print(kotak.hitungKeliling());// 20.0
+  print(kotak.deskripsi());
+  // Persegi dengan sisi 5.0, luas 25.0, keliling 20.0
+}
+```
+
+## Constructor
+
+Constructor adalah method khusus yang dipanggil saat membuat object baru. Dart mendukung beberapa jenis constructor.
+
+### Default Constructor
+
+Jika Anda tidak mendefinisikan constructor, Dart menyediakan constructor default tanpa parameter.
+
+```dart
+class Kucing {
+  String nama = 'Tanpa Nama';
+  int umur = 0;
+}
+
+void main() {
+  var kucing = Kucing(); // Menggunakan default constructor
+  print(kucing.nama);    // Tanpa Nama
+}
+```
+
+### Constructor dengan Parameter
+
+```dart
+class Mahasiswa {
+  String nama;
+  String jurusan;
+  int angkatan;
+
+  // Constructor dengan parameter — shorthand syntax
+  Mahasiswa(this.nama, this.jurusan, this.angkatan);
+}
+
+void main() {
+  var mhs = Mahasiswa('Andi', 'Informatika', 2023);
+  print('${mhs.nama} - ${mhs.jurusan} (${mhs.angkatan})');
+  // Andi - Informatika (2023)
+}
+```
+
+### Named Constructor
+
+Named constructor memungkinkan Anda membuat beberapa constructor dengan nama berbeda dalam satu class.
+
+```dart
+class Titik {
+  double x;
+  double y;
+
+  // Constructor utama
+  Titik(this.x, this.y);
+
+  // Named constructor — titik di origin (0, 0)
+  Titik.origin()
+      : x = 0,
+        y = 0;
+
+  // Named constructor — titik dari Map
+  Titik.dariMap(Map<String, double> map)
+      : x = map['x'] ?? 0,
+        y = map['y'] ?? 0;
+
+  @override
+  String toString() => 'Titik($x, $y)';
+}
+
+void main() {
+  var t1 = Titik(3.0, 4.0);
+  var t2 = Titik.origin();
+  var t3 = Titik.dariMap({'x': 7.5, 'y': 2.3});
+
+  print(t1); // Titik(3.0, 4.0)
+  print(t2); // Titik(0.0, 0.0)
+  print(t3); // Titik(7.5, 2.3)
+}
+```
+
+### Factory Constructor
+
+Factory constructor tidak selalu membuat instance baru. Bisa mengembalikan instance dari cache, subclass, atau hasil komputasi lain.
+
+```dart
+class Warna {
+  final int r, g, b;
+
+  // Constructor biasa (private dengan underscore)
+  const Warna._internal(this.r, this.g, this.b);
+
+  // Factory constructor — mengembalikan instance yang sudah didefinisikan
+  factory Warna(String nama) {
+    switch (nama.toLowerCase()) {
+      case 'merah':
+        return Warna._internal(255, 0, 0);
+      case 'hijau':
+        return Warna._internal(0, 255, 0);
+      case 'biru':
+        return Warna._internal(0, 0, 255);
+      default:
+        return Warna._internal(0, 0, 0); // Hitam sebagai default
+    }
+  }
+
+  @override
+  String toString() => 'Warna(r: $r, g: $g, b: $b)';
+}
+
+void main() {
+  var merah = Warna('merah');
+  var biru = Warna('biru');
+  var lainnya = Warna('ungu');
+
+  print(merah);   // Warna(r: 255, g: 0, b: 0)
+  print(biru);    // Warna(r: 0, g: 0, b: 255)
+  print(lainnya); // Warna(r: 0, g: 0, b: 0)
+}
+```
+
+## Getter dan Setter
+
+Getter dan setter memungkinkan Anda mengontrol akses ke properties. Gunakan keyword `get` dan `set` untuk mendefinisikannya.
+
+```dart
+class Lingkaran {
+  double _radius; // Underscore menandakan private (konvensi)
+
+  Lingkaran(this._radius);
+
+  // Getter — mengakses nilai turunan
+  double get radius => _radius;
+  double get luas => 3.14159 * _radius * _radius;
+  double get keliling => 2 * 3.14159 * _radius;
+  double get diameter => _radius * 2;
+
+  // Setter — mengontrol perubahan nilai
+  set radius(double nilai) {
+    if (nilai > 0) {
+      _radius = nilai;
+    } else {
+      print('Radius harus positif!');
+    }
+  }
+}
+
+void main() {
+  var lingkaran = Lingkaran(7.0);
+
+  // Menggunakan getter (seperti mengakses property biasa)
+  print('Radius: ${lingkaran.radius}');     // Radius: 7.0
+  print('Diameter: ${lingkaran.diameter}'); // Diameter: 14.0
+  print('Luas: ${lingkaran.luas}');         // Luas: 153.93791
+  print('Keliling: ${lingkaran.keliling}'); // Keliling: 43.98226
+
+  // Menggunakan setter
+  lingkaran.radius = 10.0;
+  print('Radius baru: ${lingkaran.radius}'); // Radius baru: 10.0
+
+  lingkaran.radius = -5.0; // Radius harus positif!
+  print('Radius tetap: ${lingkaran.radius}'); // Radius tetap: 10.0
+}
+```
+
+## Inheritance (Pewarisan)
+
+Inheritance memungkinkan sebuah class mewarisi properties dan methods dari class lain menggunakan keyword `extends`. Class yang mewarisi disebut **subclass**, dan class yang diwarisi disebut **superclass**.
+
+```dart
+// Superclass (class induk)
+class Hewan {
+  String nama;
+  int umur;
+
+  Hewan(this.nama, this.umur);
+
+  void makan() {
+    print('$nama sedang makan');
+  }
+
+  void tidur() {
+    print('$nama sedang tidur');
+  }
+
+  void info() {
+    print('$nama, umur $umur tahun');
+  }
+}
+
+// Subclass (class anak) — mewarisi semua dari Hewan
+class Anjing extends Hewan {
+  String ras;
+
+  // Constructor subclass harus memanggil constructor superclass
+  Anjing(super.nama, super.umur, this.ras);
+
+  // Method tambahan khusus Anjing
+  void gonggong() {
+    print('$nama: Guk guk!');
+  }
+}
+
+class Kucing extends Hewan {
+  bool dalamRuangan;
+
+  Kucing(super.nama, super.umur, {this.dalamRuangan = true});
+
+  void mengeong() {
+    print('$nama: Meow!');
+  }
+}
+
+void main() {
+  var anjing = Anjing('Buddy', 3, 'Golden Retriever');
+  anjing.info();     // Buddy, umur 3 tahun (dari Hewan)
+  anjing.makan();    // Buddy sedang makan (dari Hewan)
+  anjing.gonggong(); // Buddy: Guk guk! (khusus Anjing)
+
+  var kucing = Kucing('Mimi', 2);
+  kucing.info();     // Mimi, umur 2 tahun (dari Hewan)
+  kucing.tidur();    // Mimi sedang tidur (dari Hewan)
+  kucing.mengeong(); // Mimi: Meow! (khusus Kucing)
+}
+```
+
+## Method Overriding
+
+Subclass bisa menimpa (override) method dari superclass menggunakan anotasi `@override`. Ini memungkinkan subclass memberikan implementasi yang berbeda.
+
+```dart
+class Bentuk {
+  String nama;
+
+  Bentuk(this.nama);
+
+  double hitungLuas() {
+    return 0; // Default — akan di-override oleh subclass
+  }
+
+  @override
+  String toString() => '$nama: luas = ${hitungLuas()}';
+}
+
+class PersegiPanjang extends Bentuk {
+  double panjang;
+  double lebar;
+
+  PersegiPanjang(this.panjang, this.lebar) : super('Persegi Panjang');
+
+  @override
+  double hitungLuas() {
+    return panjang * lebar;
+  }
+}
+
+class Segitiga extends Bentuk {
+  double alas;
+  double tinggi;
+
+  Segitiga(this.alas, this.tinggi) : super('Segitiga');
+
+  @override
+  double hitungLuas() {
+    return 0.5 * alas * tinggi;
+  }
+}
+
+void main() {
+  var pp = PersegiPanjang(10, 5);
+  var sg = Segitiga(8, 6);
+
+  print(pp); // Persegi Panjang: luas = 50.0
+  print(sg); // Segitiga: luas = 24.0
+
+  // Polymorphism — variabel bertipe superclass bisa menampung subclass
+  List<Bentuk> bentukList = [pp, sg];
+  for (var bentuk in bentukList) {
+    print('${bentuk.nama}: ${bentuk.hitungLuas()}');
+  }
+  // Persegi Panjang: 50.0
+  // Segitiga: 24.0
+}
+```
+
+## Abstract Class
+
+Abstract class tidak bisa di-instantiate secara langsung. Digunakan sebagai kontrak yang harus diimplementasikan oleh subclass. Method abstract tidak memiliki body — subclass **wajib** mengimplementasikannya.
+
+```dart
+// Abstract class — tidak bisa dibuat object-nya langsung
+abstract class Kendaraan {
+  String merk;
+
+  Kendaraan(this.merk);
+
+  // Method abstract — harus diimplementasikan oleh subclass
+  void bergerak();
+  double hitungPajak();
+
+  // Method biasa — bisa langsung digunakan oleh subclass
+  void info() {
+    print('Kendaraan: $merk');
+  }
+}
+
+class Mobil extends Kendaraan {
+  int cc;
+
+  Mobil(super.merk, this.cc);
+
+  @override
+  void bergerak() {
+    print('$merk melaju di jalan raya');
+  }
+
+  @override
+  double hitungPajak() {
+    return cc * 50.0; // Pajak berdasarkan CC mesin
+  }
+}
+
+class Sepeda extends Kendaraan {
+  Sepeda(super.merk);
+
+  @override
+  void bergerak() {
+    print('$merk dikayuh di jalur sepeda');
+  }
+
+  @override
+  double hitungPajak() {
+    return 0; // Sepeda tidak kena pajak
+  }
+}
+
+void main() {
+  // var k = Kendaraan('Test'); // Error: abstract class tidak bisa di-instantiate
+
+  var mobil = Mobil('Toyota', 1500);
+  mobil.info();       // Kendaraan: Toyota
+  mobil.bergerak();   // Toyota melaju di jalan raya
+  print('Pajak: Rp${mobil.hitungPajak()}'); // Pajak: Rp75000.0
+
+  var sepeda = Sepeda('Polygon');
+  sepeda.bergerak();  // Polygon dikayuh di jalur sepeda
+  print('Pajak: Rp${sepeda.hitungPajak()}'); // Pajak: Rp0.0
+}
+```
+
+## Interfaces (implements)
+
+Di Dart, **setiap class bisa digunakan sebagai interface**. Tidak ada keyword `interface` khusus. Gunakan `implements` untuk mengimplementasikan interface — class yang mengimplementasikan **wajib** menyediakan semua properties dan methods.
+
+```dart
+// Class ini berfungsi sebagai interface
+class Printable {
+  String formatOutput() => '';
+}
+
+class Storable {
+  void simpan() {}
+  void hapus() {}
+}
+
+// Mengimplementasikan beberapa interface sekaligus
+class Dokumen implements Printable, Storable {
+  String judul;
+  String isi;
+
+  Dokumen(this.judul, this.isi);
+
+  @override
+  String formatOutput() {
+    return '=== $judul ===\n$isi';
+  }
+
+  @override
+  void simpan() {
+    print('Dokumen "$judul" disimpan');
+  }
+
+  @override
+  void hapus() {
+    print('Dokumen "$judul" dihapus');
+  }
+}
+
+void main() {
+  var doc = Dokumen('Laporan', 'Isi laporan bulanan...');
+
+  print(doc.formatOutput());
+  // === Laporan ===
+  // Isi laporan bulanan...
+
+  doc.simpan(); // Dokumen "Laporan" disimpan
+  doc.hapus();  // Dokumen "Laporan" dihapus
+}
+```
+
+### Perbedaan extends vs implements
+
+```dart
+class A {
+  void metode() {
+    print('Implementasi dari A');
+  }
+}
+
+// extends — mewarisi implementasi
+class B extends A {
+  // metode() sudah tersedia dari A, tidak wajib override
+}
+
+// implements — harus implementasi ulang semua method
+class C implements A {
+  @override
+  void metode() {
+    print('Implementasi baru dari C');
+  }
+}
+
+void main() {
+  B().metode(); // Implementasi dari A
+  C().metode(); // Implementasi baru dari C
+}
+```
+
+## Mixins
+
+Mixin adalah cara untuk **berbagi kode antar beberapa class** tanpa menggunakan inheritance. Gunakan keyword `mixin` untuk mendefinisikan dan `with` untuk menggunakannya. Satu class bisa menggunakan beberapa mixin sekaligus.
+
+```dart
+// Definisi mixin
+mixin BisaTerbang {
+  void terbang() {
+    print('Sedang terbang di udara');
+  }
+}
+
+mixin BisaBerenang {
+  void berenang() {
+    print('Sedang berenang di air');
+  }
+}
+
+mixin BisaBerlari {
+  int kecepatan = 0;
+
+  void berlari(int kec) {
+    kecepatan = kec;
+    print('Berlari dengan kecepatan $kec km/jam');
+  }
+}
+
+// Menggunakan mixin dengan keyword 'with'
+class Bebek extends Hewan with BisaTerbang, BisaBerenang {
+  Bebek(super.nama);
+}
+
+class Elang extends Hewan with BisaTerbang {
+  Elang(super.nama);
+}
+
+class Kuda extends Hewan with BisaBerlari {
+  Kuda(super.nama);
+}
+
+// Superclass sederhana
+class Hewan {
+  String nama;
+  Hewan(this.nama);
+}
+
+void main() {
+  var bebek = Bebek('Donald');
+  bebek.terbang();  // Sedang terbang di udara
+  bebek.berenang(); // Sedang berenang di air
+
+  var elang = Elang('Garuda');
+  elang.terbang();  // Sedang terbang di udara
+
+  var kuda = Kuda('Spirit');
+  kuda.berlari(60); // Berlari dengan kecepatan 60 km/jam
+}
+```
+
+### Mixin dengan Batasan (on)
+
+Anda bisa membatasi mixin agar hanya bisa digunakan oleh class tertentu menggunakan keyword `on`.
+
+```dart
+class Musisi {
+  String nama;
+  Musisi(this.nama);
+
+  void tampil() {
+    print('$nama tampil di panggung');
+  }
+}
+
+// Mixin ini hanya bisa digunakan oleh class yang extends Musisi
+mixin Gitaris on Musisi {
+  void mainGitar() {
+    print('$nama memainkan gitar');
+  }
+}
+
+mixin Vokalis on Musisi {
+  void menyanyi() {
+    print('$nama sedang menyanyi');
+  }
+}
+
+class RockStar extends Musisi with Gitaris, Vokalis {
+  RockStar(super.nama);
+}
+
+void main() {
+  var bintang = RockStar('Andi');
+  bintang.tampil();     // Andi tampil di panggung
+  bintang.mainGitar();  // Andi memainkan gitar
+  bintang.menyanyi();   // Andi sedang menyanyi
+}
+```
+
+## Static Members
+
+Static members (properties dan methods) milik **class itu sendiri**, bukan milik instance. Diakses langsung melalui nama class tanpa membuat object.
+
+```dart
+class Matematika {
+  // Static property
+  static const double pi = 3.14159;
+  static int _hitungan = 0;
+
+  // Static method
+  static double luasLingkaran(double radius) {
+    _hitungan++;
+    return pi * radius * radius;
+  }
+
+  static double kelilingLingkaran(double radius) {
+    _hitungan++;
+    return 2 * pi * radius;
+  }
+
+  static int get totalPerhitungan => _hitungan;
+}
+
+class Pengguna {
+  static int _jumlahPengguna = 0;
+
+  String nama;
+
+  Pengguna(this.nama) {
+    _jumlahPengguna++; // Increment setiap kali object dibuat
+  }
+
+  static int get jumlahPengguna => _jumlahPengguna;
+}
+
+void main() {
+  // Akses static member langsung dari class — tanpa membuat object
+  print(Matematika.pi);                     // 3.14159
+  print(Matematika.luasLingkaran(7));       // 153.93791
+  print(Matematika.kelilingLingkaran(7));   // 43.98226
+  print('Total perhitungan: ${Matematika.totalPerhitungan}'); // 2
+
+  // Static property untuk tracking jumlah instance
+  var u1 = Pengguna('Andi');
+  var u2 = Pengguna('Budi');
+  var u3 = Pengguna('Citra');
+  print('Jumlah pengguna: ${Pengguna.jumlahPengguna}'); // 3
+}
+```
+
+## Ringkasan
+
+| Konsep | Keyword | Keterangan |
+|--------|---------|------------|
+| Class | `class NamaClass {}` | Blueprint untuk membuat object |
+| Object | `var obj = NamaClass()` | Instance dari sebuah class |
+| Constructor | `NamaClass(this.prop)` | Method khusus untuk inisialisasi object |
+| Named constructor | `NamaClass.nama()` | Constructor alternatif dengan nama |
+| Factory constructor | `factory NamaClass()` | Constructor yang bisa mengembalikan instance yang sudah ada |
+| Getter / Setter | `get prop =>` / `set prop(v)` | Mengontrol akses ke properties |
+| Inheritance | `extends` | Mewarisi properties dan methods dari superclass |
+| Override | `@override` | Menimpa method dari superclass |
+| Abstract class | `abstract class` | Class yang tidak bisa di-instantiate langsung |
+| Interface | `implements` | Mengimplementasikan semua members dari class lain |
+| Mixin | `mixin` + `with` | Berbagi kode antar class tanpa inheritance |
+| Static | `static` | Members milik class, bukan instance |
+
+Pemrograman berorientasi objek adalah fondasi utama Dart dan Flutter. Dengan memahami class, inheritance, dan mixins, Anda siap membangun aplikasi Flutter yang terstruktur dan mudah di-maintain.
+
+Lanjutkan ke halaman [Null Safety](/docs/tutorials/dart/null-safety) untuk mempelajari sistem null safety di Dart yang membantu mencegah null reference errors.
