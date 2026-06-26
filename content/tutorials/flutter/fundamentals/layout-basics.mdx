@@ -1,0 +1,1158 @@
+---
+title: Layout Basics
+description: Pelajari layout dasar Flutter — Scaffold, AppBar, Container, Row, Column, padding & margin, dan cara menyusun UI dengan benar.
+---
+
+Di tutorial sebelumnya kita belajar tentang widget. Sekarang saatnya menyusun widget-widget itu jadi UI yang rapi. Layout adalah fondasi — UI yang bagus dimulai dari layout yang benar.
+
+## 1. Pengantar
+
+Layout di Flutter adalah proses mengatur posisi dan ukuran widget. Karena semuanya widget, layout pun dilakukan dengan widget.
+
+Ada tiga hal yang selalu kamu lakukan dengan layout:
+
+1. **Menentukan posisi** — di kiri, kanan, tengah, atas, bawah
+2. **Menentukan ukuran** — width, height, flexibel atau fixed
+3. **Menentukan urutan** — vertikal (Column) atau horizontal (Row)
+
+Semua layout widget di Flutter mengikuti aturan sederhana:
+
+> **Widget parent bilang "kamu boleh sebesar ini" ke child. Child bilang "aku mau sebesar ini" balik ke parent. Parent mutusin posisi akhir child.**
+
+Ini disebut **constraints** — dan kamu nggak perlu hafal detailnya sekarang. Cukup ingat: parent kasih batasan, child kasih ukuran yang diinginkan.
+
+## 2. Scaffold
+
+`Scaffold` adalah **template halaman** standar Material Design. Ini yang paling sering kamu pakai sebagai halaman utama.
+
+```dart
+Scaffold(
+  appBar: AppBar(
+    title: const Text('Judul Halaman'),
+  ),
+  body: const Center(
+    child: Text('Ini konten utama'),
+  ),
+  floatingActionButton: FloatingActionButton(
+    onPressed: () {},
+    child: const Icon(Icons.add),
+  ),
+  bottomNavigationBar: BottomNavigationBar(
+    items: const [
+      BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+      BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+    ],
+  ),
+)
+```
+
+### Komponen Scaffold
+
+```dart
+Scaffold(
+  // ⬇️ App bar di atas
+  appBar: AppBar(
+    title: const Text('Aplikasi Saya'),
+    actions: [
+      IconButton(
+        icon: const Icon(Icons.search),
+        onPressed: () {},
+      ),
+    ],
+  ),
+
+  // ⬇️ Body — konten utama (hanya satu widget)
+  body: ... ,
+
+  // ⬇️ Tombol aksi mengambang
+  floatingActionButton: FloatingActionButton(
+    onPressed: () {},
+    child: const Icon(Icons.add),
+  ),
+
+  // ⬇️ Sheet dari bawah (alternatif FAB)
+  bottomSheet: Container(
+    height: 100,
+    color: Colors.grey.shade200,
+    child: const Center(child: Text('Bottom Sheet')),
+  ),
+
+  // ⬇️ Drawer samping
+  drawer: Drawer(
+    child: ListView(
+      children: const [
+        DrawerHeader(child: Text('Menu')),
+        ListTile(title: Text('Item 1')),
+        ListTile(title: Text('Item 2')),
+      ],
+    ),
+  ),
+
+  // ⬇️ Navigasi bawah
+  bottomNavigationBar: BottomNavigationBar(
+    currentIndex: 0,
+    items: const [
+      BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+      BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Jelajahi'),
+      BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+    ],
+  ),
+)
+```
+
+Kamu bisa pakai semua komponen ini atau sebagian. Scaffold nggak mewajibkan apapun — `appBar` boleh null, `drawer` boleh nggak ada.
+
+### Contoh Lengkap Scaffold
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Layout Demo',
+      theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
+      home: const HomePage(),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Layout Demo'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: const Center(
+        child: Text('Ini halaman utama'),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {},
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+      bottomNavigationBar: NavigationBar(
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.favorite), label: 'Favorit'),
+          NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 3. AppBar
+
+`AppBar` adalah batang navigasi di atas Scaffold.
+
+```dart
+AppBar(
+  title: const Text('Judul'),       // judul di tengah/kiri
+  leading: const BackButton(),       // ikon kiri (default: hamburger menu)
+  actions: [                         // ikon kanan
+    IconButton(icon: Icon(Icons.search), onPressed: () {}),
+  ],
+  backgroundColor: Colors.blue,      // warna latar
+  foregroundColor: Colors.white,     // warna teks/ikon
+  elevation: 4,                      // bayangan
+  centerTitle: true,                 // judul di tengah
+)
+```
+
+### Back Button Otomatis
+
+Kalau halaman dibuka via `Navigator.push()`, Flutter otomatis nambahin back button di leading. Kamu nggak perlu nambah manual.
+
+```dart
+Navigator.push(
+  context,
+  MaterialPageRoute(builder: (context) => const DetailPage()),
+);
+
+// Di DetailPage, AppBar otomatis punya arrow back ←
+```
+
+Kalau mau manual, ada `BackButton()` atau `CloseButton()`:
+
+```dart
+AppBar(
+  leading: const BackButton(),      // panah ←
+  // atau
+  leading: const CloseButton(),     // tanda X
+)
+```
+
+## 4. Body
+
+`body` di Scaffold cuma nerima **satu widget**. Tapi satu widget itu bisa berisi widget lain.
+
+```dart
+Scaffold(
+  body: Column(       // ← ini satu widget
+    children: [        // ← tapi isinya banyak
+      Text('Baris 1'),
+      Text('Baris 2'),
+    ],
+  ),
+)
+)
+
+// Alternatif layout body:
+body: ListView(...)           // scrollable
+body: SingleChildScrollView(  // scroll kalau overflow
+  child: Column(...),
+)
+body: Center(...)             // tengahin satu widget
+body: Padding(...)            // kasih jarak tepi
+body: SafeArea(...)           // hindari notch/status bar
+```
+
+### SafeArea
+
+`SafeArea` menambahkan padding otomatis biar konten nggak ketimpa **status bar, notch, atau home indicator**.
+
+```dart
+// Tanpa SafeArea → konten bisa ketimpa status bar
+Scaffold(
+  body: Column(
+    children: [
+      Container(height: 50, color: Colors.red),
+      Text('Konten di bawah'),
+    ],
+  ),
+)
+
+// Pakai SafeArea → konten aman dari notch
+Scaffold(
+  body: SafeArea(
+    child: Column(
+      children: [
+        Container(height: 50, color: Colors.red),
+        const Text('Konten aman'),
+      ],
+    ),
+  ),
+)
+```
+
+## 5. Container
+
+`Container` adalah widget serbaguna untuk **padding, margin, ukuran, dekorasi, dan posisi**.
+
+```dart
+Container(
+  width: 200,
+  height: 100,
+  padding: const EdgeInsets.all(16),
+  margin: const EdgeInsets.all(8),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: const Text('Di dalam Container'),
+)
+```
+
+### Container Bisa Digunakan Sebagai:
+
+```dart
+// Sebagai box dengan ukuran tetap
+Container(width: 100, height: 100)
+
+// Sebagai pembungkus dengan padding
+Container(
+  padding: EdgeInsets.all(16),
+  child: Text('Hello'),
+)
+
+// Sebagai pembungkus dengan margin
+Container(
+  margin: EdgeInsets.all(8),
+  child: Text('Hello'),
+)
+
+// Sebagai box dengan dekorasi
+Container(
+  width: 150,
+  height: 150,
+  decoration: BoxDecoration(
+    color: Colors.blue,
+    borderRadius: BorderRadius.circular(20),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black26,
+        blurRadius: 8,
+        offset: Offset(2, 4),
+      ),
+    ],
+  ),
+)
+
+// Sebagai clickable area (dengan GestureDetector)
+GestureDetector(
+  onTap: () => print('Diclick!'),
+  child: Container(
+    padding: const EdgeInsets.all(16),
+    color: Colors.grey.shade200,
+    child: const Text('Tap aku'),
+  ),
+)
+```
+
+### Penting: Container Tanpa child
+
+Kalau `Container` punya **child**, ukurannya ngikut child. Kalau **tidak punya child**, ukurannya sebesar mungkin (seluas parent-nya).
+
+```dart
+// Ada child → ukuran ngikut child
+Container(
+  color: Colors.red,
+  child: const Text('Halo'),  // ukurannya cuma setinggi teks
+)
+
+// Nggak ada child → ukuran sebesar parent
+Container(
+  color: Colors.red,  // ukurannya seluas layar (atau parent)
+)
+```
+
+Ini sering bikin bingung pemula. Ingat: child menentukan ukuran Container, bukan sebaliknya (kecuali kamu kasih width/height eksplisit).
+
+## 6. BoxDecoration
+
+`BoxDecoration` dipakai `Container` untuk visual styling.
+
+```dart
+Container(
+  decoration: BoxDecoration(
+    color: Colors.white,                  // warna latar
+    borderRadius: BorderRadius.circular(16),  // sudut melengkung
+    border: Border.all(                   // border
+      color: Colors.grey,
+      width: 1,
+    ),
+    boxShadow: [                          // bayangan
+      BoxShadow(
+        color: Colors.black26,
+        blurRadius: 8,
+        offset: const Offset(2, 4),
+      ),
+    ],
+    gradient: const LinearGradient(       // gradien
+      colors: [Colors.blue, Colors.purple],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  ),
+)
+```
+
+### Contoh Berbagai Gaya BoxDecoration
+
+```dart
+// Kotak dengan bayangan
+Container(
+  width: 100,
+  height: 100,
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.1),
+        blurRadius: 12,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  ),
+)
+
+// Kotak dengan border saja
+Container(
+  width: 100,
+  height: 100,
+  decoration: BoxDecoration(
+    border: Border.all(color: Colors.blue, width: 2),
+    borderRadius: BorderRadius.circular(8),
+  ),
+)
+
+// Kotak berbentuk lingkaran
+Container(
+  width: 80,
+  height: 80,
+  decoration: const BoxDecoration(
+    color: Colors.amber,
+    shape: BoxShape.circle,  // lingkaran
+  ),
+  child: const Center(child: Text('A')),
+)
+```
+
+## 7. Row & Column
+
+`Row` dan `Column` adalah widget untuk menyusun widget secara **horizontal** (Row) dan **vertikal** (Column).
+
+```dart
+// Horizontal — berjejer ke samping
+Row(
+  children: [
+    Widget1,
+    Widget2,
+    Widget3,
+  ],
+)
+
+// Vertikal — berjejer ke bawah
+Column(
+  children: [
+    Widget1,
+    Widget2,
+    Widget3,
+  ],
+)
+```
+
+### mainAxisAlignment
+
+Ini mengatur posisi anak-anak di **sepanjang sumbu utama**:
+- Row: sumbu utama = horizontal (kiri-kanan)
+- Column: sumbu utama = vertikal (atas-bawah)
+
+```dart
+Row(
+  mainAxisAlignment: MainAxisAlignment.center,  // tengah horizontal
+  children: const [
+    Icon(Icons.star),
+    Icon(Icons.star),
+    Icon(Icons.star),
+  ],
+)
+```
+
+### Nilai MainAxisAlignment
+
+```dart
+Row(
+  mainAxisAlignment: MainAxisAlignment.start,        // ke kiri (default)
+  mainAxisAlignment: MainAxisAlignment.end,           // ke kanan
+  mainAxisAlignment: MainAxisAlignment.center,        // ke tengah
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,  // rata kiri-kanan, jarak antar item
+  mainAxisAlignment: MainAxisAlignment.spaceAround,   // jarak antar item + margin di ujung
+  mainAxisAlignment: MainAxisAlignment.spaceEvenly,   // jarak SAMA antar semua item termasuk ujung
+)
+```
+
+**Visual spaceBetween vs spaceAround vs spaceEvenly:**
+
+```
+spaceBetween: [item]-----[item]-----[item]
+spaceAround:  ---[item]-----[item]----[item]---
+spaceEvenly:  ----[item]-----[item]-----[item]----
+```
+
+### crossAxisAlignment
+
+Ini mengatur posisi anak-anak di seberang sumbu utama:
+- Row: cross axis = vertikal (atas-bawah)
+- Column: cross axis = horizontal (kiri-kanan)
+
+```dart
+Row(
+  crossAxisAlignment: CrossAxisAlignment.center,  // rata tengah vertikal
+  children: [
+    Container(height: 50, width: 50, color: Colors.red),
+    Container(height: 100, width: 50, color: Colors.green),
+    Container(height: 30, width: 50, color: Colors.blue),
+  ],
+)
+```
+
+### Nilai CrossAxisAlignment
+
+```dart
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,    // rata kiri (default Row)
+  crossAxisAlignment: CrossAxisAlignment.end,       // rata kanan
+  crossAxisAlignment: CrossAxisAlignment.center,    // rata tengah (default Column)
+  crossAxisAlignment: CrossAxisAlignment.stretch,   // lebarkan semua anak sebesar parent
+)
+```
+
+### Contoh Lengkap Row & Column
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Row & Column Demo')),
+        body: const Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Baris 1: start
+              Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Icon(Icons.star, color: Colors.amber),
+                  Icon(Icons.star, color: Colors.amber),
+                  Icon(Icons.star, color: Colors.amber),
+                ],
+              ),
+              SizedBox(height: 16),
+
+              // Baris 2: spaceEvenly
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Icon(Icons.favorite, color: Colors.red),
+                  Icon(Icons.favorite, color: Colors.red),
+                  Icon(Icons.favorite, color: Colors.red),
+                ],
+              ),
+              SizedBox(height: 16),
+
+              // Baris 3: crossAxisAlignment stretch
+              SizedBox(
+                height: 100,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: Card(color: Colors.blue)),
+                    SizedBox(width: 8),
+                    Expanded(child: Card(color: Colors.green)),
+                    SizedBox(width: 8),
+                    Expanded(child: Card(color: Colors.orange)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 8. Expanded vs Flexible
+
+Dua widget ini dipakai di dalam Row/Column untuk membagi ruang yang tersisa.
+
+### Expanded
+
+`Expanded` memenuhi semua ruang kosong di sumbu utama:
+
+```dart
+Row(
+  children: [
+    Container(width: 50, color: Colors.red),
+    Expanded(                                   // ← ambil sisa ruang
+      child: Container(color: Colors.green),
+    ),
+    Container(width: 50, color: Colors.blue),
+  ],
+)
+```
+
+**Lebar: red(50) + green(sisa) + blue(50)**
+
+### Flexible
+
+`Flexible` mirip Expanded, tapi child-nya bisa lebih kecil dari ruang yang diberikan:
+
+```dart
+Row(
+  children: [
+    Container(width: 100, color: Colors.red),
+    Flexible(                                   // ← ambil sisa ruang, tapi shrink kalau perlu
+      child: Container(color: Colors.green),
+    ),
+  ],
+)
+```
+
+### Perbedaan dengan flex ratio
+
+```dart
+Row(
+  children: [
+    Expanded(
+      flex: 1,    // 1 bagian dari total
+      child: Container(color: Colors.blue),
+    ),
+    Expanded(
+      flex: 2,    // 2 bagian dari total
+      child: Container(color: Colors.green),
+    ),
+    Expanded(
+      flex: 1,    // 1 bagian dari total
+      child: Container(color: Colors.orange),
+    ),
+  ],
+)
+
+// Total flex = 4
+// Biru = 1/4, Hijau = 2/4, Orange = 1/4
+```
+
+### Expanded vs Flexible — Kapan Pake Mana?
+
+| | Expanded | Flexible |
+|---|---|---|
+| Memaksa ukuran | Ya — child harus penuhi ruang | Tidak — child boleh lebih kecil |
+| Default fit | fit ke ruang | fit ke child |
+| Pakai kalau | Mau bagi rata | Mau kasih ruang ekstra, tapi child menentukan ukuran akhir |
+
+## 9. Padding & EdgeInsets
+
+**Padding** di Flutter bukan properti — ini widget sendiri.
+
+```dart
+Padding(
+  padding: EdgeInsets.all(16),
+  child: const Text('Ada jarak 16 dari tepi'),
+)
+```
+
+Ada dua widget yang mirip:
+
+- `Padding` — widget murni untuk padding
+- `Container` dengan `padding:` — Container bisa juga ngasih padding
+
+Pakai mana? Kalau cuma butuh padding, gunakan `Padding` (lebih ringan dari Container).
+
+### EdgeInsets — Semua Cara
+
+```dart
+// Sama semua sisi
+EdgeInsets.all(16)
+
+// Horizontal + vertikal beda
+EdgeInsets.symmetric(
+  horizontal: 16,    // kiri + kanan
+  vertical: 8,       // atas + bawah
+)
+
+// Per sisi
+EdgeInsets.only(
+  top: 16,
+  bottom: 8,
+  left: 24,
+  right: 24,
+)
+
+// Dari LTRB (left, top, right, bottom) — urutan seperti CSS
+EdgeInsets.fromLTRB(16, 8, 16, 8)
+```
+
+### Margin
+
+Margin juga pakai `EdgeInsets`, tapi dibungkus `Container`:
+
+```dart
+Container(
+  margin: const EdgeInsets.all(16),
+  color: Colors.blue,
+  child: const Text('Ada jarak luar'),
+)
+```
+
+### Inline Padding vs Container
+
+```dart
+// Opsi 1: Padding widget (lebih ringan)
+const Padding(
+  padding: EdgeInsets.all(16),
+  child: Text('Halo'),
+)
+
+// Opsi 2: Container dengan padding (lebih berat, tapi bisa + decoration)
+Container(
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(...),
+  child: const Text('Halo'),
+)
+```
+
+Pakai Padding kalau cuma butuh padding. Pakai Container kalau butuh lebih dari padding (dekorasi, border, dll).
+
+## 10. Importance of const
+
+`const` di Flutter bukan cuma keyword — ini optimasi **serius**.
+
+Kenapa?
+
+```dart
+// Tanpa const: Flutter buat widget BARU tiap rebuild
+Padding(
+  padding: EdgeInsets.all(16),  // objek EdgeInsets baru setiap build
+  child: Text('Hello'),
+)
+
+// Dengan const: Flutter pake SATU objek yang sama terus
+const Padding(
+  padding: EdgeInsets.all(16),  // hanya dibuat sekali
+  child: Text('Hello'),
+)
+```
+
+### Aturan Praktis
+
+```dart
+// ✅ Pakai const kalau widgetnya statis
+const Text('Label tetap');
+const SizedBox(height: 16);
+const Icon(Icons.home);
+
+// ⚠️ Nggak bisa const kalau ada variable
+Text(namaUser);  // variable → nggak bisa const
+Padding(
+  padding: EdgeInsets.all(ukuran),  // variable → nggak bisa const
+)
+
+// ✅ Kecuali variable-nya juga const
+const ukuran = 16.0;
+const Padding(
+  padding: EdgeInsets.all(ukuran),  // ukuran const → bisa
+  child: Text('Halo'),
+)
+```
+
+Latihan: biasakan lihat opsi "convert to const" dari IDE (biasanya ada lampu kuning). VS Code juga kasih quick fix `Alt+Enter` → `Add const`.
+
+## 11. MediaQuery & LayoutBuilder
+
+Untuk layout responsif, Flutter punya dua alat:
+
+### MediaQuery — Informasi Layar
+
+```dart
+@override
+Widget build(BuildContext context) {
+  // Dapatkan ukuran layar
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
+  final isSmall = screenWidth < 400;
+
+  return Container(
+    padding: EdgeInsets.all(isSmall ? 8 : 24),
+    child: Text(
+      isSmall ? 'Layar kecil' : 'Layar besar',
+    ),
+  );
+}
+```
+
+**Yang bisa kamu dapat dari MediaQuery:**
+
+```dart
+final media = MediaQuery.of(context);
+media.size                    // Size(width, height)
+media.devicePixelRatio        // rasio pixel
+media.textScaleFactor         // skala teks sistem
+media.platformBrightness      // Brightness.light / .dark
+media.padding                 // EdgeInsets untuk safe area
+media.orientation             // Orientation.portrait / .landscape
+```
+
+### LayoutBuilder — Constraints dari Parent
+
+`LayoutBuilder` ngasih tahu ukuran yang diberikan parent ke widget ini:
+
+```dart
+LayoutBuilder(
+  builder: (context, constraints) {
+    if (constraints.maxWidth > 600) {
+      return _buildWideLayout();    // tablet / web
+    } else {
+      return _buildNarrowLayout(); // ponsel
+    }
+  },
+)
+```
+
+### Contoh Layout Responsif Sederhana
+
+```dart
+import 'package:flutter/material.dart';
+
+class ResponsivePage extends StatelessWidget {
+  const ResponsivePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Responsif')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 500;
+
+          if (isWide) {
+            // Tablet/Desktop: dua kolom
+            return Row(
+              children: [
+                Expanded(child: Card(child: _buildPanel('Panel Kiri'))),
+                const SizedBox(width: 16),
+                Expanded(child: Card(child: _buildPanel('Panel Kanan'))),
+              ],
+            );
+          } else {
+            // Ponsel: satu kolom
+            return Column(
+              children: [
+                Expanded(child: Card(child: _buildPanel('Panel Atas'))),
+                const SizedBox(height: 16),
+                Expanded(child: Card(child: _buildPanel('Panel Bawah'))),
+              ],
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPanel(String label) {
+    return Center(
+      child: Text(label, style: const TextStyle(fontSize: 24)),
+    );
+  }
+}
+```
+
+## 12. Step-by-Step: Halaman Profil
+
+Sekarang kita bikin halaman profil sederhana dari nol, step by step.
+
+### Step 1: Scaffold + AppBar
+
+```dart
+Scaffold(
+  appBar: AppBar(title: const Text('Profil')),
+  body: ...
+)
+```
+
+### Step 2: Body dengan Column
+
+```dart
+body: Column(
+  children: [
+    // Bagian atas: foto + nama
+    // Bagian bawah: info
+  ],
+)
+```
+
+### Step 3: Foto Profil
+
+```dart
+const CircleAvatar(
+  radius: 50,
+  backgroundImage: NetworkImage('https://picsum.photos/200'),
+)
+```
+
+### Step 4: Nama + Bio
+
+```dart
+Column(
+  children: [
+    const Text(
+      'Ahmad Faisal',
+      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(height: 4),
+    Text(
+      'Flutter Developer | Content Creator',
+      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+    ),
+  ],
+)
+```
+
+### Step 5: Info Cards
+
+```dart
+Row(
+  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  children: [
+    _buildInfoCard('Postingan', '12'),
+    _buildInfoCard('Pengikut', '1.2K'),
+    _buildInfoCard('Mengikuti', '89'),
+  ],
+)
+```
+
+### Hasil Akhir
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const ProfilePage(),
+    );
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Foto + nama
+              const SizedBox(height: 16),
+              const CircleAvatar(
+                radius: 50,
+                backgroundImage: NetworkImage('https://picsum.photos/200'),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Ahmad Faisal',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Flutter Developer | Content Creator',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+
+              // Info cards
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _InfoColumn(label: 'Postingan', value: '12'),
+                      _InfoColumn(label: 'Pengikut', value: '1.2K'),
+                      _InfoColumn(label: 'Mengikuti', value: '89'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Bio
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Tentang Saya',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Saya sedang belajar Flutter dan membuat berbagai aplikasi '
+                'menarik. Suka kopi, kode, dan ngoding sambil dengerin musik.',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 24),
+
+              // Tombol aksi
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Edit Profil'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoColumn extends StatelessWidget {
+  const _InfoColumn({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+      ],
+    );
+  }
+}
+```
+
+## 13. Common Beginner Mistakes
+
+### Mistake 1: Lupa Const pada Widget Statis
+
+```dart
+// ❌ Salah — SizedBox dibuat baru setiap rebuild
+SizedBox(height: 16)
+
+// ✅ Benar
+const SizedBox(height: 16)
+```
+
+Widget statis tanpa variable wajib `const`. Ini optimasi gratis.
+
+### Mistake 2: RenderFlex Overflow
+
+```dart
+// ❌ Salah — Column bisa overflow kalau isinya melebihi layar
+Column(
+  children: daftarPanjang,
+)
+
+// ✅ Benar — ListView sudah scrollable
+ListView(
+  children: daftarPanjang,
+)
+
+// Atau bungkus Column dengan scroll
+SingleChildScrollView(
+  child: Column(
+    children: daftarPanjang,
+  ),
+)
+```
+
+### Mistake 3: Column/Row Tanpa mainAxisSize
+
+```dart
+// ❌ Default — Column ambil semua tinggi layar
+Column(
+  children: [
+    Text('Item 1'),
+    Text('Item 2'),
+  ],
+)
+// Ini ambil tinggi penuh, kadang nggak diinginkan
+
+// ✅ Benar — pakai mainAxisSize.min kalau cuma perlu setinggi konten
+Column(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    const Text('Item 1'),
+    const Text('Item 2'),
+  ],
+)
+```
+
+### Mistake 4: Container Tanpa Child Jadi Fullscreen
+
+```dart
+// ❌ Ini merah fullscreen — karena nggak punya child
+Container(color: Colors.red)
+
+// ✅ Ini merah sesuai ukuran — karena dikasih ukuran
+Container(
+  width: 100,
+  height: 100,
+  color: Colors.red,
+)
+```
+
+### Mistake 5: MediaQuery.of(context) di Luar Build Context
+
+```dart
+// ❌ Salah — context belum siap di constructor
+class MyWidget extends StatelessWidget {
+  final screenWidth = MediaQuery.of(context).size.width;  // ERROR
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ Benar — MediaQuery di dalam build
+    final screenWidth = MediaQuery.of(context).size.width;
+    ...
+  }
+}
+```
+
+## 14. Apa Selanjutnya?
+
+Kamu sudah belajar layout dasar Flutter:
+
+- `Scaffold` sebagai template halaman
+- `AppBar` dengan actions dan leading
+- `Container` dan `BoxDecoration`
+- `Row` dan `Column` dengan alignment
+- `Expanded` vs `Flexible`
+- `Padding` dan `EdgeInsets`
+- `const` untuk optimasi
+- `MediaQuery` dan `LayoutBuilder` untuk responsif
+- Step-by-step bikin halaman profil
+
+Layout adalah skill yang perlu banyak latihan. Coba eksperimen: ubah mainAxisAlignment, ganti Expanded jadi Flexible, tambah Container di berbagai tempat.
+
+### Lanjut ke Tutorial Berikutnya
+
+**[Navigation](./navigation.mdx)** — Pelajari cara pindah halaman, passing data, bottom nav, tab, dan drawer.
+
+Navigasi adalah jembatan antara satu halaman ke halaman lain. Tanpa navigasi, aplikasi cuma punya satu halaman.

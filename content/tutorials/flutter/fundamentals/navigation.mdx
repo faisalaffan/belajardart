@@ -1,0 +1,1174 @@
+---
+title: Navigation
+description: Pelajari navigasi di Flutter — Navigator.push, named routes, passing data antar screen, bottom navigation, tabs, dan drawer.
+---
+
+Aplikasi nggak cuma satu halaman. Kamu perlu pindah dari halaman A ke B, bawa data, dan kadang balik dengan hasil. Di tutorial ini, kita pelajari semua cara navigasi di Flutter.
+
+## 1. Pengantar
+
+**Navigasi** adalah mekanisme pindah dari satu screen ke screen lain. Di Flutter, navigasi diatur oleh widget `Navigator`.
+
+Navigator bekerja seperti **stack (tumpukan)**:
+
+```
+Halaman C   ← top (yang terlihat)
+Halaman B
+Halaman A   ← bottom (paling bawah, pertama dibuka)
+```
+
+- **Push:** taruh halaman baru di atas stack → user lihat halaman baru
+- **Pop:** ambil halaman dari atas stack → user balik ke halaman sebelumnya
+
+```dart
+// Push — buka halaman baru (taruh di atas)
+Navigator.push(context, route);
+
+// Pop — tutup halaman (ambil dari atas)
+Navigator.pop(context);
+```
+
+Setiap `MaterialApp` sudah punya `Navigator` internal. Kamu nggak perlu bikin manual.
+
+## 2. Navigator.push + MaterialPageRoute
+
+Ini cara paling dasar untuk pindah halaman.
+
+```dart
+// Di halaman manapun (asalkan punya Navigator context):
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const SecondPage(),
+  ),
+);
+```
+
+**Cara kerja:**
+
+1. `Navigator.push()` menerima `context` dan `Route`
+2. `MaterialPageRoute` adalah route bawaan Flutter dengan animasi transisi Material (slide dari kanan)
+3. `builder` menerima `context` dan return widget tujuan
+4. Flutter render `SecondPage` di atas halaman sebelumnya
+
+### Contoh Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const HomePage(),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Beranda')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () {
+            // Navigasi ke SecondPage
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SecondPage(),
+              ),
+            );
+          },
+          child: const Text('Buka Halaman Kedua'),
+        ),
+      ),
+    );
+  }
+}
+
+class SecondPage extends StatelessWidget {
+  const SecondPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Halaman Kedua'),
+        // Back button otomatis dari Flutter
+      ),
+      body: Center(
+        child: Text(
+          'Kamu berhasil navigasi!',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+      ),
+    );
+  }
+}
+```
+
+Coba jalanin. Tombol "Back" di AppBar akan muncul otomatis dan panggil `Navigator.pop()`.
+
+## 3. Navigator.pop()
+
+`Navigator.pop()` menutup halaman yang sedang aktif dan balik ke halaman sebelumnya.
+
+```dart
+// Di AppBar — otomatis (back button)
+// Di kode — manual:
+Navigator.pop(context);
+```
+
+### Pop dengan Hasil
+
+```dart
+// Mengembalikan data saat pop
+Navigator.pop(context, 'Data dari halaman kedua');
+```
+
+Halaman yang menerima push bisa menangkap hasil ini.
+
+## 4. Passing Data
+
+Bawa data dari halaman A ke halaman B — pakai **constructor parameter**.
+
+```dart
+// Halaman pertama: buka halaman detail dengan data
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => DetailPage(
+      item: Item(
+        id: 1,
+        title: 'Belajar Flutter',
+      ),
+    ),
+  ),
+);
+
+// Halaman DetailPage: terima data via constructor
+class DetailPage extends StatelessWidget {
+  const DetailPage({
+    super.key,
+    required this.item,
+  });
+
+  final Item item;  // ← data diterima di sini
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(item.title)),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('Ini detail untuk item #${item.id}'),
+      ),
+    );
+  }
+}
+```
+
+### Contoh Lengkap Passing Data
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const ProductListPage(),
+    );
+  }
+}
+
+// Model sederhana — ngga perlu class terpisah untuk demo
+class Product {
+  final String name;
+  final double price;
+  final IconData icon;
+
+  const Product({
+    required this.name,
+    required this.price,
+    required this.icon,
+  });
+}
+
+class ProductListPage extends StatelessWidget {
+  const ProductListPage({super.key});
+
+  final List<Product> products = const [
+    Product(name: 'Kopi', price: 25000, icon: Icons.coffee),
+    Product(name: 'Teh', price: 15000, icon: Icons.local_cafe),
+    Product(name: 'Roti', price: 20000, icon: Icons.restaurant),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Daftar Produk')),
+      body: ListView.builder(
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return ListTile(
+            leading: Icon(product.icon),
+            title: Text(product.name),
+            subtitle: Text('Rp ${product.price}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              // Pass data ke halaman detail
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProductDetailPage(
+                    product: product,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class ProductDetailPage extends StatelessWidget {
+  const ProductDetailPage({
+    super.key,
+    required this.product,
+  });
+
+  final Product product;  // ← data diterima
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(product.name)),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(product.icon, size: 100, color: Colors.brown),
+            const SizedBox(height: 24),
+            Text(
+              product.name,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Rp ${product.price}',
+              style: const TextStyle(fontSize: 24, color: Colors.green),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 5. Returning Data
+
+Navigasi bisa return data. Ini penting untuk: form input, konfirmasi dialog, atau pemilihan item.
+
+```dart
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pilih Warna')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            // Tunggu hasil dari SecondPage
+            final result = await Navigator.push<String>(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ColorPickerPage(),
+              ),
+            );
+
+            // result akan null kalau user tekan back tanpa pilih
+            if (result != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Kamu pilih: $result')),
+              );
+            }
+          },
+          child: const Text('Pilih Warna'),
+        ),
+      ),
+    );
+  }
+}
+
+class ColorPickerPage extends StatelessWidget {
+  const ColorPickerPage({super.key});
+
+  final List<String> colors = const ['Merah', 'Hijau', 'Biru', 'Kuning'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pilih Warna')),
+      body: ListView.builder(
+        itemCount: colors.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(colors[index]),
+            trailing: const Icon(Icons.check),
+            onTap: () {
+              // Pop dengan data yang dipilih
+              Navigator.pop(context, colors[index]);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+```
+
+### Poin Penting
+
+```dart
+// Navigasi return tipe Future, karena push bersifat ASINKRON
+final result = await Navigator.push<String>(context, route);
+
+// Generic type <String> optional tapi bagus untuk dokumentasi
+Navigator.push<String>(context, ...) // return Future<String?>
+Navigator.push(context, ...)          // return Future<dynamic>
+```
+
+Kalau user tekan back tanpa pilih apapun, result-nya `null`.
+
+## 6. Named Routes
+
+Daripada tulis `MaterialPageRoute` terus, kamu bisa daftarkan route di `MaterialApp` dan panggil pakai nama.
+
+### Definisi
+
+```dart
+MaterialApp(
+  initialRoute: '/',
+  routes: {
+    '/': (context) => const HomePage(),
+    '/about': (context) => const AboutPage(),
+    '/settings': (context) => const SettingsPage(),
+  },
+)
+```
+
+### Penggunaan
+
+```dart
+Navigator.pushNamed(context, '/about');
+```
+
+### Contoh Lengkap Named Routes
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Named Routes',
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomePage(),
+        '/about': (context) => const AboutPage(),
+        '/contact': (context) => const ContactPage(),
+      },
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Beranda')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/about');
+              },
+              child: const Text('Tentang Kami'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/contact');
+              },
+              child: const Text('Kontak'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AboutPage extends StatelessWidget {
+  const AboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tentang')),
+      body: const Center(child: Text('Ini halaman tentang')),
+    );
+  }
+}
+
+class ContactPage extends StatelessWidget {
+  const ContactPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Kontak')),
+      body: const Center(child: Text('Ini halaman kontak')),
+    );
+  }
+}
+```
+
+### Keterbatasan Named Routes
+
+Named routes **tidak bisa** passing data secara langsung. Kalau butuh data, pake `onGenerateRoute`.
+
+## 7. onGenerateRoute
+
+Ini solusi untuk **passing data di named routes**. `onGenerateRoute` dipanggil kalau route nggak ketemu di `routes` map.
+
+```dart
+MaterialApp(
+  routes: {
+    '/': (context) => const HomePage(),
+  },
+  onGenerateRoute: (settings) {
+    // settings.name = '/product/detail'
+    // settings.arguments = data yang dikirim
+
+    switch (settings.name) {
+      case '/product/detail':
+        final product = settings.arguments as Product;
+        return MaterialPageRoute(
+          builder: (context) => ProductDetailPage(product: product),
+        );
+      default:
+        return MaterialPageRoute(
+          builder: (context) => const NotFoundPage(),
+        );
+    }
+  },
+)
+```
+
+### Kirim Data dengan pushNamed
+
+```dart
+Navigator.pushNamed(
+  context,
+  '/product/detail',
+  arguments: Product(name: 'Kopi', price: 25000),
+);
+```
+
+### onGenerateRoute + Passing Data — Contoh Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+import 'dart:math';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomePage(),
+      },
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/detail':
+            final data = settings.arguments as Map<String, dynamic>;
+
+            // Validasi: pastikan argumen memiliki key yang diperlukan
+            final title = data['title'] as String? ?? 'Tanpa Judul';
+            final value = data['value'] as int? ?? 0;
+
+            return MaterialPageRoute(
+              builder: (context) => DetailPage(
+                title: title,
+                value: value,
+              ),
+            );
+          default:
+            return MaterialPageRoute(
+              builder: (context) => const Scaffold(
+                body: Center(child: Text('Halaman tidak ditemukan')),
+              ),
+            );
+        }
+      },
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  final List<Map<String, dynamic>> items = const [
+    {'title': 'Item Pertama', 'value': 100},
+    {'title': 'Item Kedua', 'value': 200},
+    {'title': 'Item Ketiga', 'value': 300},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Daftar Item')),
+      body: ListView.builder(
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return ListTile(
+            title: Text(item['title'] as String),
+            subtitle: Text('Nilai: ${item['value']}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/detail',
+                arguments: item,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class DetailPage extends StatelessWidget {
+  const DetailPage({
+    super.key,
+    required this.title,
+    required this.value,
+  });
+
+  final String title;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Text(
+          'Nilai: $value',
+          style: const TextStyle(fontSize: 48),
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 8. Push Replacement & Pop Until
+
+Navigasi nggak cuma push dan pop. Ada cara untuk mengelola stack lebih advance.
+
+### pushReplacement
+
+Ganti halaman saat ini dengan halaman baru (tanpa bisa back ke halaman sebelumnya). Cocok untuk **login → beranda**.
+
+```dart
+// Setelah login berhasil, ganti halaman login dengan beranda
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const HomePage(),
+  ),
+);
+```
+
+**Visual:**
+
+```
+LoginPage           → pushReplacement: HomePage
+HomePage (ganti)    → (LoginPage dihapus dari stack)
+
+User dari HomePage tekan back → keluar dari app, bukan balik ke LoginPage
+```
+
+### pushAndRemoveUntil
+
+Push halaman baru dan hapus semua halaman sebelumnya sampai kondisi terpenuhi.
+
+```dart
+// Clear semua halaman di stack, jadikan halaman ini satu-satunya
+Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const HomePage(),
+  ),
+  (route) => false,  // ← hapus semua
+);
+```
+
+### popUntil
+
+Pop berulang sampai kondisi terpenuhi.
+
+```dart
+// Balik ke halaman pertama di stack
+Navigator.popUntil(context, (route) => route.isFirst);
+
+// Balik ke route tertentu
+Navigator.popUntil(context, (route) => route.settings.name == '/home');
+```
+
+### Contoh — Aplikasi dengan Auth Flow
+
+```dart
+// LoginPage → pushReplacement → HomePage
+// HomePage → product detail → confirm checkout → pushAndRemoveUntil → HomePage (kosong)
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Beranda'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              // Logout → balik ke halaman login, hapus semua
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginPage(),
+                ),
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+      body: const Center(child: Text('Selamat datang!')),
+    );
+  }
+}
+
+class LoginPage extends StatelessWidget {
+  const LoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const HomePage(),
+              ),
+            );
+          },
+          child: const Text('Login (Simulasi)'),
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 9. BottomNavigationBar
+
+Navigasi bawah — 3-5 tab yang tetap terlihat.
+
+### Cara 1: BottomNavigationBar (Material 2)
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const MainNavigation(),
+    );
+  }
+}
+
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
+
+  @override
+  State<MainNavigation> createState() => _MainNavigationState();
+}
+
+class _MainNavigationState extends State<MainNavigation> {
+  int _currentIndex = 0;
+
+  // Gunakan IndexedStack untuk menjaga state halaman
+  final List<Widget> _pages = const [
+    HomeTab(),
+    SearchTab(),
+    ProfileTab(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Aplikasi Saya')),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Beranda',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Cari',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profil',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HomeTab extends StatelessWidget {
+  const HomeTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Tab Beranda'));
+  }
+}
+
+class SearchTab extends StatelessWidget {
+  const SearchTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Tab Pencarian'));
+  }
+}
+
+class ProfileTab extends StatelessWidget {
+  const ProfileTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Tab Profil'));
+  }
+}
+```
+
+### Kenapa IndexedStack?
+
+Tanpa `IndexedStack`, setiap ganti tab Flutter akan **destroy** dan **create** ulang widget tiap tab. State tab sebelumnya hilang (misal: scroll position, form input).
+
+`IndexedStack` menjaga semua tab tetap **hidup** — cuma yang aktif yang ditampilkan. Halaman lain tetap di memori dengan state-nya.
+
+### Cara 2: NavigationBar (Material 3)
+
+Material 3 punya `NavigationBar` yang lebih modern:
+
+```dart
+bottomNavigationBar: NavigationBar(
+  selectedIndex: _currentIndex,
+  onDestinationSelected: (index) {
+    setState(() => _currentIndex = index);
+  },
+  destinations: const [
+    NavigationDestination(
+      icon: Icon(Icons.home_outlined),
+      selectedIcon: Icon(Icons.home),
+      label: 'Beranda',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.search_outlined),
+      selectedIcon: Icon(Icons.search),
+      label: 'Cari',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outlined),
+      selectedIcon: Icon(Icons.person),
+      label: 'Profil',
+    ),
+  ],
+)
+```
+
+## 10. TabBar + TabBarView
+
+Tab di dalam satu halaman (biasanya di bawah AppBar).
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const TabExample(),
+    );
+  }
+}
+
+class TabExample extends StatelessWidget {
+  const TabExample({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,  // jumlah tab
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Tab Demo'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.directions_car), text: 'Mobil'),
+              Tab(icon: Icon(Icons.directions_bike), text: 'Motor'),
+              Tab(icon: Icon(Icons.directions_bus), text: 'Bus'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            Center(child: Text('Tab Mobil')),
+            Center(child: Text('Tab Motor')),
+            Center(child: Text('Tab Bus')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Tab dengan StatefulWidget
+
+Kalau tiap tab butuh state sendiri, pastikan pakai StatefulWidget:
+
+```dart
+class CarTab extends StatefulWidget {
+  const CarTab({super.key});
+
+  @override
+  State<CarTab> createState() => _CarTabState();
+}
+
+class _CarTabState extends State<CarTab> {
+  int _counter = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Counter: $_counter', style: const TextStyle(fontSize: 32)),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => setState(() => _counter++),
+            child: const Text('Tambah'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Tips TabBar
+
+```dart
+// Tab isomorfik (icon saja, text saja, atau kombinasi)
+const Tab(icon: Icon(Icons.star))
+const Tab(text: 'Favorit')
+const Tab(icon: Icon(Icons.star), text: 'Favorit')
+
+// TabController manual (tanpa DefaultTabController)
+class _PageState extends State<MyPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+  ...
+}
+```
+
+**Catatan:** `DefaultTabController` otomatis mengatur TabController untuk widget tree di bawahnya. Kalau kamu perlu kontrol lebih (misal: pindah tab dari kode), gunakan `TabController` manual.
+
+## 11. Drawer
+
+Drawer adalah menu samping yang muncul dari kiri.
+
+```dart
+Scaffold(
+  drawer: Drawer(
+    child: ListView(
+      children: [
+        const DrawerHeader(
+          decoration: BoxDecoration(color: Colors.blue),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 30, color: Colors.blue),
+              ),
+              SizedBox(height: 8),
+              Text('Ahmad Faisal', style: TextStyle(color: Colors.white)),
+              Text('faisal@email.com', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.home),
+          title: const Text('Beranda'),
+          onTap: () {
+            Navigator.pop(context);  // tutup drawer
+            // navigasi
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.settings),
+          title: const Text('Pengaturan'),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.pushNamed(context, '/settings');
+          },
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text('Keluar', style: TextStyle(color: Colors.red)),
+          onTap: () {
+            Navigator.pop(context);
+            // logout logic
+          },
+        ),
+      ],
+    ),
+  ),
+)
+```
+
+### Buka/Tutup Drawer dari Kode
+
+```dart
+// Buka drawer (user juga bisa swipe dari kiri tepi)
+Scaffold.of(context).openDrawer();
+
+// Tutup drawer
+Navigator.pop(context);  // Drawer juga bagian dari Navigator stack
+```
+
+### Drawer vs EndDrawer
+
+```dart
+// Drawer dari kiri (default)
+Scaffold(drawer: ...)
+
+// Drawer dari kanan
+Scaffold(endDrawer: ...)
+
+// Buka EndDrawer
+Scaffold.of(context).openEndDrawer();
+```
+
+## 12. Common Beginner Mistakes
+
+### Mistake 1: Push di build()
+
+```dart
+// ❌ Salah — navigasi di build() menyebabkan infinite loop
+@override
+Widget build(BuildContext context) {
+  Navigator.push(context, route);  // ❌ ERROR — build dipanggil berulang
+  return Scaffold(...);
+}
+
+// ✅ Benar — navigasi dari event handler
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: ElevatedButton(
+      onPressed: () {
+        Navigator.push(context, route);  // ✅ dari user action
+      },
+      child: const Text('Buka'),
+    ),
+  );
+}
+```
+
+### Mistake 2: Lupa Pop — User Nggak Bisa Balik
+
+```dart
+// ❌ Salah — pake pushReplacement pas mau balik
+ElevatedButton(
+  onPressed: () {
+    Navigator.pushReplacement(context, route);  // ❌ pake replacement
+    // User balik ke halaman ini? Nggak bisa — halaman sebelumnya udah diganti
+  },
+  child: const Text('Simpan'),
+)
+
+// ✅ Benar — pake pop()
+ElevatedButton(
+  onPressed: () {
+    Navigator.pop(context);  // ✅ user balik dengan benar
+  },
+  child: const Text('Simpan'),
+)
+```
+
+### Mistake 3: Context Tidak Valid Setelah Pop
+
+```dart
+// ❌ Salah — pake context setelah widget di-pop
+Navigator.pop(context);
+ScaffoldMessenger.of(context).showSnackBar(...);  // ❌ context sudah tidak valid
+
+// ✅ Benar — simpan reference atau pake callback
+// Atau: jalanin sebelum pop
+ScaffoldMessenger.of(context).showSnackBar(...);
+Navigator.pop(context);
+```
+
+### Mistake 4: Lupa await di push
+
+```dart
+// ❌ Kalau butuh hasil, await-nya lupa
+void _pilihWarna() {
+  Navigator.push(context, route);  // hasil tidak ditangkap
+}
+
+// ✅ Benar — await
+Future<void> _pilihWarna() async {
+  final result = await Navigator.push<String>(context, route);
+  print('User pilih: $result');
+}
+```
+
+### Mistake 5: Named Route tapi Lupa Daftar
+
+```dart
+// ❌ Error: "Could not find a generator for route /product"
+Navigator.pushNamed(context, '/product');
+
+// ✅ Pastikan route terdaftar
+MaterialApp(
+  routes: {
+    '/': (context) => const HomePage(),
+    '/product': (context) => const ProductPage(),  // ← daftar di sini
+  },
+  // atau pake onGenerateRoute
+  onGenerateRoute: (settings) { ... },
+)
+```
+
+## 13. Apa Selanjutnya?
+
+Kamu sudah belajar:
+
+- `Navigator.push` / `pop` untuk navigasi dasar
+- Passing data via constructor
+- Returning data dari halaman
+- Named routes dan `onGenerateRoute`
+- Push management: `pushReplacement`, `pushAndRemoveUntil`, `popUntil`
+- `BottomNavigationBar` dengan `IndexedStack`
+- `TabBar` + `TabBarView`
+- `Drawer` untuk menu samping
+- Common navigation mistakes
+
+Navigasi adalah jembatan antar halaman. Setelah ini, aplikasi kamu bisa punya banyak halaman dengan flow yang jelas.
+
+### Lanjut ke Tutorial Berikutnya
+
+**[State Basics](./state-basics.mdx)** — Pelajari setState, lifecycle, lifting state up, callback pattern, dan kapan menggunakan state management.
+
+State management adalah level berikutnya. Begitu aplikasi kamu butuh state yang complex — data yang dibagi antar halaman, atau perubahan yang butuh sinkronisasi — tutorial itu akan menjawab semuanya.

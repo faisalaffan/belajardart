@@ -1,0 +1,1101 @@
+---
+title: State Basics
+description: Pelajari state di Flutter — setState, StatefulWidget lifecycle, lifting state up, callback pattern, dan kapan menggunakan state management.
+---
+
+Di tutorial ini kita masuk ke inti dari aplikasi dinamis: **state**. Tanpa state, aplikasi kamu cuma kumpulan gambar statis. Dengan state, aplikasi jadi hidup — tombol bisa ditekan, data bisa dimuat, UI bisa berubah.
+
+## 1. Pengantar: Apa Itu State?
+
+**State** adalah data yang bisa berubah selama widget hidup di layar.
+
+Contoh state dalam aplikasi:
+
+```
+- Counter: angka yang bertambah saat tombol ditekan
+- TextField: teks yang diketik user
+- Checkbox: centang atau tidak
+- Data dari API: loading → data → error
+- Posisi scroll: sejauh mana user scroll
+```
+
+State dibedakan jadi dua:
+
+| Jenis | Deskripsi | Contoh |
+|-------|-----------|--------|
+| **Ephemeral state** | Data lokal di satu widget, tidak dibagi | Counter, checkbox, current tab |
+| **App state** | Data yang dipakai banyak widget | Data user, theme mode, cart items |
+
+Di tutorial ini fokus ke **ephemeral state** — state lokal yang dikelola sendiri oleh widget. App state kita bahas nanti.
+
+### State = data yang, kalau berubah, UI harus update
+
+Di Flutter, hubungan state dan UI adalah:
+
+```
+State berubah → setState() → build() dipanggil ulang → UI baru
+```
+
+Flutter nggak otomatis tahu kalau data berubah. Kamu harus kasih tahu: "Hei, data berubah. Render ulang!"
+
+## 2. StatefulWidget Anatomy
+
+StatefulWidget selalu punya **dua class**:
+
+```dart
+// Class 1: Widget (immutable configuration)
+// - Dibuat oleh parent, properties-nya final
+// - Lifecycle: dibuat, disimpan, mungkin diganti, dihapus
+class MyCounter extends StatefulWidget {
+  const MyCounter({super.key});
+
+  @override
+  State<MyCounter> createState() => _MyCounterState();
+}
+
+// Class 2: State (mutable — tempat logic dan data)
+// - Hidup selama widget ada di widget tree
+// - createState() dipanggil SATU KALI
+class _MyCounterState extends State<MyCounter> {
+  int _count = 0;  // ← state
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('$_count');
+  }
+}
+```
+
+### Kenapa Dua Class?
+
+Pertanyaan bagus. Karena:
+
+1. **Widget harus immutable** — Flutter bisa rebuild widget parent tanpa takut mengubah data
+2. **State terpisah** — Flutter bisa menyimpan State meskipun Widget diganti (selama tipe dan key sama)
+3. **State lebih berat** — Flutter bisa mengelola lifecycle State secara terpisah
+
+Bayangin gini: Widget itu **resep masakan**. State itu **masakan yang lagi dimasak**. Kamu bisa ganti resep (widget baru), tapi kalau lagi masak, kamu nggak mau mulai dari nol.
+
+## 3. Lifecycle StatefulWidget
+
+StatefulWidget melewati beberapa fase dari lahir sampai mati.
+
+```
+═══ LAHIR ═══
+    ↓
+createState()
+    ↓
+initState()           ← siapkan controller, listener, inisialisasi data
+    ↓
+didChangeDependencies() ← dependensi dari InheritedWidget siap
+    ↓
+build()               ← render UI pertama
+    ↓
+═══ HIDUP ═══
+    ↓
+setState()            ← data berubah → build() dipanggil ulang
+    ↓
+build()               ← UI baru
+    ↓
+didUpdateWidget()     ← widget diganti parent (config baru)
+    ↓
+build()               ← UI dengan config baru
+    ↓
+...
+    ↓
+═══ MATI ═══
+    ↓
+deactivate()          ← widget dihapus dari tree (bisa dipasang lagi)
+    ↓
+dispose()             ← bersihin controller, listener, resource
+```
+
+### Lifecycle Code — Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+
+class LifecycleDemo extends StatefulWidget {
+  const LifecycleDemo({super.key});
+
+  @override
+  State<LifecycleDemo> createState() => _LifecycleDemoState();
+}
+
+class _LifecycleDemoState extends State<LifecycleDemo> {
+  @override
+  void initState() {
+    super.initState();
+    print('1️⃣  initState() — widget baru dibuat');
+    // 🔥 JANGAN panggil context yang bergantung pada BuildContext di sini
+    // 🔥 JANGAN panggil setState() di sini
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print('2️⃣  didChangeDependencies() — dependensi siap');
+    // Tempat yang aman untuk panggil MediaQuery, Theme, atau InheritedWidget
+  }
+
+  @override
+  void didUpdateWidget(covariant LifecycleDemo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    print('3️⃣  didUpdateWidget() — widget parent ganti konfigurasi');
+    // Bandingkan widget baru dengan oldWidget kalau perlu
+  }
+
+  @override
+  void setState(VoidCallback fn) {
+    print('4️⃣  setState() dipanggil — rebuild dimulai');
+    super.setState(fn);
+  }
+
+  @override
+  void deactivate() {
+    super.deactivate();
+    print('5️⃣  deactivate() — widget akan dihapus');
+  }
+
+  @override
+  void dispose() {
+    print('6️⃣  dispose() — SELESAI. Bersihin semua resource');
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print('🔄 build() — render UI');
+    return const SizedBox(); // kosong untuk demo
+  }
+}
+```
+
+### Yang Paling Sering Kamu Butuh
+
+Dari semua lifecycle, ini yang paling sering dipakai:
+
+```dart
+// 🔥 initState — inisialisasi
+@override
+void initState() {
+  super.initState();
+  _controller = TextEditingController();
+  _fetchData();
+}
+
+// 🔥 build — render UI (WAJIB)
+@override
+Widget build(BuildContext context) { ... }
+
+// 🔥 dispose — bersihin
+@override
+void dispose() {
+  _controller.dispose();
+  super.dispose();
+}
+```
+
+### Aturan Penting
+
+```dart
+// ❌ JANGAN: panggil setState di initState
+@override
+void initState() {
+  super.initState();
+  setState(() {}); // ❌ ERROR — widget belum di-mount
+}
+
+// ✅ BOLEH: simpan data, nanti di-build
+@override
+void initState() {
+  super.initState();
+  _data = _initialData();
+}
+
+// ❌ JANGAN: lupa super.initState()
+@override
+void initState() {
+  // super.initState(); // ❌ lupa — error runtime
+}
+
+// ✅ BOLEH: await data fetch
+@override
+void initState() {
+  super.initState();
+  _fetchData(); // async, tapi await-nya di method, bukan initState
+}
+
+Future<void> _fetchData() async {
+  final data = await api.getData();
+  if (mounted) {  // ← penting: cek masih hidup apa nggak
+    setState(() => _data = data);
+  }
+}
+```
+
+## 4. setState() Deep Dive
+
+`setState()` adalah satu-satunya cara resmi untuk bilang ke Flutter: "render ulang!"
+
+```dart
+setState(() {
+  // Ubah state di sini
+  _counter++;
+});
+```
+
+### Cara Kerja
+
+1. Kamu panggil `setState(callback)`
+2. Flutter eksekusi callback (update data)
+3. Flutter mark widget ini sebagai "dirty" (perlu rebuild)
+4. Flutter jadwalkan `build()` di frame berikutnya
+5. `build()` dipanggil dengan state baru
+6. UI tampil dengan data terbaru
+
+### Aturan Emas setState
+
+```dart
+// ✅ 1. Hanya update data yang perlu
+setState(() {
+  _counter++;       // ✅ yang ini perlu
+  // _nama = nama;  // ❌ kalau nggak dipakai di build, jangan di sini
+  // _hitungUlang(); // ❌ jangan panggil fungsi berat di sini
+});
+
+// ✅ 2. Jangan taruh logika berat di dalam setState
+setState(() {
+  _data = hasilPerhitunganBerat(); // ❌ berat → Flutter delay rebuild
+});
+
+// ✅ 3. Simpan komputasi berat di luar setState
+final data = hasilPerhitunganBerat(); // ← hitung di sini
+setState(() {
+  _data = data;
+});
+```
+
+### Boleh setState Dari Mana Saja (dalam State class)
+
+```dart
+// Dari callback
+onPressed: () => setState(() => _count++);
+
+// Dari method
+void _increment() {
+  setState(() => _count++);
+}
+
+// Dari future
+Future<void> _loadData() async {
+  final data = await api.fetch();
+  if (mounted) {
+    setState(() => _data = data);
+  }
+}
+
+// Dari stream listener
+_stream.listen((event) {
+  if (mounted) {
+    setState(() => _events.add(event));
+  }
+});
+```
+
+### Mounted Check
+
+Setelah `dispose()`, widget tidak boleh di-setState lagi. Tapi kalau ada async operation yang pending, setState bisa terpanggil setelah dispose.
+
+```dart
+Future<void> _loadData() async {
+  final data = await api.fetch();  // nunggu 2 detik
+  // Apakah widget masih hidup?
+  if (!mounted) return;  // ← kalau sudah di-pop, skip
+  setState(() => _data = data);
+}
+```
+
+## 5. Contoh: Counter App dengan Lifecycle Logging
+
+Ini aplikasi counter dengan logging lifecycle — jalanin di terminal `flutter run` dan lihat output console.
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const CounterPage(),
+    );
+  }
+}
+
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    print('═══ initState() ═══');
+    print('State dimulai. Counter awal: $_counter');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print('═══ didChangeDependencies() ═══');
+  }
+
+  void _increment() {
+    setState(() {
+      _counter++;
+      print('setState() → counter: $_counter');
+    });
+  }
+
+  void _decrement() {
+    setState(() {
+      if (_counter > 0) _counter--;
+      print('setState() → counter: $_counter');
+    });
+  }
+
+  @override
+  void dispose() {
+    print('═══ dispose() ═══');
+    print('State dibersihkan. Counter terakhir: $_counter');
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print('build() dipanggil. Nilai counter: $_counter');
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lifecycle Demo'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Kamu menekan tombol:',
+              style: TextStyle(fontSize: 20),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '$_counter',
+              style: const TextStyle(
+                fontSize: 72,
+                fontWeight: FontWeight.bold,
+                color: Colors.indigo,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FloatingActionButton(
+                  onPressed: _decrement,
+                  heroTag: 'minus',
+                  backgroundColor: Colors.orange.shade100,
+                  child: const Icon(Icons.remove, color: Colors.orange),
+                ),
+                const SizedBox(width: 24),
+                FloatingActionButton(
+                  onPressed: _increment,
+                  heroTag: 'plus',
+                  backgroundColor: Colors.green.shade100,
+                  child: const Icon(Icons.add, color: Colors.green),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+**Coba ini:**
+1. Jalankan app — lihat urutan log (initState → build)
+2. Tekan tombol — lihat build() dipanggil setiap setState
+3. Tekan back — lihat dispose() dipanggil
+
+## 6. Lifting State Up
+
+Kadang state perlu dibagi antara dua widget. Solusinya: **angkat state ke parent terdekat**.
+
+### Masalah
+
+```dart
+// ❌ Dua checkbox independen — nggak tahu satu sama lain
+class CheckboxA extends StatefulWidget { ... }
+class CheckboxB extends StatefulWidget { ... }
+// Setiap checkbox punya state sendiri → nggak bisa sinkron
+// Misal: "Pilih Semua" harus centang semua checkbox
+```
+
+### Solusi: Angkat State ke Parent
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const ChecklistPage(),
+    );
+  }
+}
+
+// ⬇️ State diangkat ke sini — parent dari semua checkbox
+class ChecklistPage extends StatefulWidget {
+  const ChecklistPage({super.key});
+
+  @override
+  State<ChecklistPage> createState() => _ChecklistPageState();
+}
+
+class _ChecklistPageState extends State<ChecklistPage> {
+  // State ada di parent
+  final List<bool> _checked = [false, false, false];
+
+  bool get _allChecked => _checked.every((item) => item);
+
+  void _toggleItem(int index) {
+    setState(() {
+      _checked[index] = !_checked[index];
+    });
+  }
+
+  void _toggleAll() {
+    setState(() {
+      final newValue = !_allChecked;
+      for (int i = 0; i < _checked.length; i++) {
+        _checked[i] = newValue;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Checklist')),
+      body: Column(
+        children: [
+          // "Pilih Semua" checkbox
+          CheckboxListTile(
+            title: const Text('Pilih Semua'),
+            value: _allChecked,
+            onChanged: (_) => _toggleAll(),
+          ),
+          const Divider(),
+          // Item checkbox — state dikirim sebagai parameter
+          ...List.generate(_checked.length, (i) {
+            return CheckboxListTile(
+              title: Text('Item ${i + 1}'),
+              value: _checked[i],
+              onChanged: (_) => _toggleItem(i),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Prinsip Lifting State Up
+
+> State ditempatkan di **parent terdekat** dari semua widget yang membutuhkannya.
+
+```
+ChecklistPage (state ada di sini)
+├── CheckboxListTile "Pilih Semua"
+├── CheckboxListTile "Item 1"  → state dikirim sebagai `value`
+└── CheckboxListTile "Item 2"  → state dikirim sebagai `value`
+```
+
+State mengalir **ke bawah** (parent → child via constructor).
+Event mengalir **ke atas** (child → parent via callback).
+
+## 7. Callback Pattern
+
+Kalau child ingin mengubah state parent, child nggak bisa akses state langsung. Child harus **memanggil callback** yang diberikan parent.
+
+### Pattern Dasar
+
+```dart
+// Parent:
+// 1. Punya state _isOn
+// 2. Kirim state sebagai value ke child
+// 3. Kirim callback onChanged ke child
+
+// Child:
+// 1. Terima value (baca doang)
+// 2. Terima onChanged callback
+// 3. Kalau ada aksi, panggil widget.onChanged()
+
+class ParentPage extends StatefulWidget {
+  ...
+}
+
+class _ParentPageState extends State<ParentPage> {
+  bool _isOn = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: CustomSwitch(
+          value: _isOn,               // state → child
+          onChanged: (newValue) {     // callback → child
+            setState(() {
+              _isOn = newValue;
+            });
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class CustomSwitch extends StatelessWidget {
+  const CustomSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;  // ← callback type
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),  // ← panggil callback
+      child: Container(
+        width: 100,
+        height: 50,
+        decoration: BoxDecoration(
+          color: value ? Colors.green : Colors.grey,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Center(
+          child: Text(
+            value ? 'ON' : 'OFF',
+            style: const TextStyle(color: Colors.white, fontSize: 18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Tipe Callback yang Umum
+
+```dart
+// Tanpa parameter — "kamu udah selesai, lakukan sesuatu"
+VoidCallback onPressed;
+// Signature: void Function()
+
+// Satu parameter — "ini data yang baru"
+ValueChanged<String> onChanged;
+// Signature: void Function(String value)
+
+// Bebas — kamu tentuin sendiri
+void Function(int id, String name) onItemSelected;
+```
+
+### Contoh: Form Input dengan Callback
+
+```dart
+class LoginForm extends StatefulWidget {
+  ...
+}
+
+class _LoginFormState extends State<LoginForm> {
+  String _email = '';
+  String _password = '';
+
+  void _handleLogin() {
+    print('Login: $_email / $_password');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Setiap TextField kirim value via onChanged
+          TextField(
+            decoration: const InputDecoration(labelText: 'Email'),
+            onChanged: (value) {
+              setState(() => _email = value);
+            },
+          ),
+          TextField(
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+            onChanged: (value) {
+              setState(() => _password = value);
+            },
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _email.isNotEmpty && _password.isNotEmpty
+                ? _handleLogin
+                : null,
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 8. Widget Tree vs Element Tree
+
+Ini konsep lanjutan yang akan membantu kamu paham **kenapa Flutter sebagus itu dalam rebuild**.
+
+### Widget Tree
+
+Pohon widget yang kamu tulis di kode. Ini blueprint.
+
+### Element Tree
+
+Pohon elemen yang **sedang aktif** di layar. Ini instance.
+
+```
+Widget Tree:               Element Tree:
+MaterialApp                MaterialApp
+└── CounterPage            └── StatefulElement
+    └── _CounterPageState       ← state hidup di sini
+        ├── Column             ElementColumn
+        ├── Text                ElementText
+        └── FAB                 ElementFAB
+```
+
+### Kenapa Ini Penting?
+
+Saat `setState()` dipanggil, Flutter **tidak** membuat ulang semua elemen. Flutter hanya **mengupdate** widget yang berubah.
+
+```dart
+// Misal state _counter berubah dari 5 ke 6:
+
+// Flutter panggil build() → Column baru, Text baru, FAB baru dibuat
+// Tapi FLUTTER BANDINGKAN tipe baru dengan element yang ada:
+
+// Column lama (type Column) == Column baru (type Column) → REUSE element
+// Text lama (type Text) == Text baru (type Text) → REUSE element, update data
+// FAB lama (type FAB) == FAB baru (type FAB) → REUSE element
+
+// Hasil: cuma Text yang text-nya berubah. Column dan FAB tetap.
+// Inilah kenapa Flutter cepat — minimal perubahan DOM.
+```
+
+### Kapan Flutter Buat Elemen Baru?
+
+```dart
+// 1. Type berubah
+// Awal:   Text('Halo')
+// Rebuild: Column(...) → type berubah → ELEMEN BARU
+
+// 2. Key berubah
+// Awal:   Text(key: Key('a'), 'Halo')
+// Rebuild: Text(key: Key('b'), 'Halo') → key berubah → ELEMEN BARU
+```
+
+### Key — Kenalan Dulu
+
+Key membantu Flutter mengidentifikasi widget satu dengan yang lain.
+
+```dart
+ListView.builder(
+  itemCount: items.length,
+  itemBuilder: (context, index) {
+    return Text(
+      items[index],
+      key: ValueKey(items[index]),  // ← key unik per item
+    );
+  },
+)
+```
+
+Tanpa key, kalau list berubah urutan, Flutter bisa salah mengasosiasikan state lama dengan item baru. Key mencegah ini.
+
+## 9. ValueNotifier + ValueListenableBuilder
+
+Kadang `setState()` terasa berat. Setiap panggilan rebuild seluruh widget, termasuk bagian yang nggak berubah.
+
+`ValueNotifier` adalah alternatif yang lebih ringan untuk perubahan state sederhana.
+
+### Cara Pakai
+
+```dart
+// 1. Buat notifier — biasanya di StatefulWidget atau service
+final ValueNotifier<int> counter = ValueNotifier(0);
+
+// 2. Di build, bungkus bagian yang perlu update
+ValueListenableBuilder<int>(
+  valueListenable: counter,
+  builder: (context, value, child) {
+    return Text('Nilai: $value');  // ← hanya bagian ini yang rebuild
+  },
+)
+
+// 3. Update value
+counter.value = 5;
+```
+
+### Contoh Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const NotifierPage(),
+    );
+  }
+}
+
+class NotifierPage extends StatefulWidget {
+  const NotifierPage({super.key});
+
+  @override
+  State<NotifierPage> createState() => _NotifierPageState();
+}
+
+class _NotifierPageState extends State<NotifierPage> {
+  // ValueNotifier lebih ringan dari setState untuk state sederhana
+  final ValueNotifier<int> _counter = ValueNotifier(0);
+  final ValueNotifier<String> _status = ValueNotifier('Aktif');
+
+  @override
+  void dispose() {
+    _counter.dispose();  // wajib dispose!
+    _status.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('ValueNotifier Demo')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Hanya bagian ini yang rebuild saat _counter berubah
+            ValueListenableBuilder<int>(
+              valueListenable: _counter,
+              builder: (context, value, child) {
+                return Text(
+                  '$value',
+                  style: const TextStyle(fontSize: 72, fontWeight: FontWeight.bold),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            // Hanya ini yang rebuild saat _status berubah
+            ValueListenableBuilder<String>(
+              valueListenable: _status,
+              builder: (context, value, child) {
+                return Text(
+                  'Status: $value',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: value == 'Aktif' ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FloatingActionButton(
+                  onPressed: () => _counter.value--,
+                  heroTag: 'dec',
+                  child: const Icon(Icons.remove),
+                ),
+                const SizedBox(width: 24),
+                FloatingActionButton(
+                  onPressed: () => _counter.value++,
+                  heroTag: 'inc',
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                _status.value =
+                    _status.value == 'Aktif' ? 'Nonaktif' : 'Aktif';
+              },
+              child: const Text('Toggle Status'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### setState vs ValueNotifier
+
+| | setState | ValueNotifier |
+|---|---|---|
+| **Rebuild** | Seluruh widget | Hanya bagian yang dibungkus ValueListenableBuilder |
+| **Setup** | Built-in (gratis) | Perlu buat object + dispose manual |
+| **Cocok untuk** | State yang mempengaruhi banyak anak | State lokal yang terisolasi |
+| **Kompleksitas** | Sederhana | Sedang |
+
+Gunakan `ValueNotifier` untuk state kecil yang terisolasi. Gunakan `setState` untuk state yang lebih kompleks.
+
+## 10. Kapan Butuh State Management External?
+
+State management external seperti Provider, Riverpod, Bloc, atau GetX diperlukan ketika **state tidak bisa ditangani oleh setState saja**.
+
+### Tanda Kamu Butuh State Management
+
+```
+1. ✅ State dibutuhkan oleh BANYAK widget di berbagai level
+   Contoh: data user login, theme mode, locale
+
+2. ✅ State harus PERSIST di seluruh navigasi
+   Contoh: keranjang belanja yang tetap ada meski pindah halaman
+
+3. ✅ State berasal dari EXTERNAL SOURCE
+   Contoh: WebSocket stream, Firebase listener
+
+4. ❌ State hanya dipakai di SATU halaman
+   Contoh: isi TextField, current tab index → setState cukup
+```
+
+### Contoh: State yang Butuh External Management
+
+```dart
+// ❌ Sulit dengan setState — data user dipakai di banyak halaman
+class LoginPage extends StatefulWidget {
+  // Begitu login, data user harus tersedia di:
+  // - HomePage (profil)
+  // - SettingsPage (info akun)
+  // - CartPage (alamat pengiriman)
+  // Setiap halaman harus fetch ulang atau terima via constructor → repot
+}
+
+// ✅ Dengan Provider — data user bisa diakses dari mana aja
+// final user = context.read<UserProvider>().user;
+```
+
+### Rekomendasi State Management
+
+| Library | Cocok untuk | Level |
+|---------|-------------|-------|
+| **setState** | State lokal sederhana | Pemula |
+| **ValueNotifier** | State lokal terisolasi | Pemula |
+| **Provider** | State global, simple | Menengah |
+| **Riverpod** | State global + compile-safe | Menengah-Lanjut |
+| **Bloc/Cubit** | State complex, event-driven | Lanjut |
+| **GetX** | All-in-one, minimal boilerplate | Semua |
+
+Tapi untuk sekarang, **setState sudah cukup**. Jangan pake state management kalau belum butuh.
+
+## 11. Common Beginner Mistakes
+
+### Mistake 1: setState di initState
+
+```dart
+@override
+void initState() {
+  super.initState();
+  setState(() {      // ❌ ERROR — widget belum di-mount
+    _data = sesuatu;
+  });
+}
+
+// ✅ Benar — set value langsung, tanpa setState
+@override
+void initState() {
+  super.initState();
+  _data = sesuatu;   // ✅ langsung aja, build() akan pakai nilai ini
+}
+```
+
+### Mistake 2: Recursive setState
+
+```dart
+// ❌ Salah — setState di dalam setState
+setState(() {
+  _counter++;
+  setState(() {       // ❌ nested setState — unpredictable
+    _other++;
+  });
+});
+
+// ✅ Benar — satu setState untuk semua perubahan
+setState(() {
+  _counter++;
+  _other++;
+});
+```
+
+### Mistake 3: Terlalu Banyak Logika di Dalam setState
+
+```dart
+// ❌ Salah — logika berat di dalam callback setState
+setState(() {
+  for (final item in items) {
+    if (item.isValid) {
+      item.process();      // ❌ pemrosesan berat
+    }
+  }
+});
+
+// ✅ Benar — proses di luar, update di dalam
+final processedItems = items.where((i) => i.isValid).toList();
+// proses berat (parsing, transformasi) di sini
+setState(() {
+  _items = processedItems;   // ✅ cuma assignment ringan
+});
+```
+
+### Mistake 4: State di StatelessWidget
+
+```dart
+// ❌ Salah — variable non-final di StatelessWidget
+class MyWidget extends StatelessWidget {
+  int counter = 0;  // ❌ ini bisa diubah tapi tidak trigger rebuild!
+
+  void increment() {
+    counter++;  // berubah, tapi UI nggak berubah
+  }
+  ...
+}
+
+// ✅ Benar — StatefulWidget kalau butuh mutable state
+class MyWidget extends StatefulWidget {
+  ...
+}
+```
+
+### Mistake 5: Lupa Mounted Check di Async
+
+```dart
+// ❌ Salah — setState setelah widget di-pop
+Future<void> loadData() async {
+  final data = await api.fetch();  // nunggu 5 detik
+  setState(() => _data = data);    // ❌ error kalau widget sudah dihapus
+}
+
+// ✅ Benar — cek mounted dulu
+Future<void> loadData() async {
+  final data = await api.fetch();
+  if (mounted) {                    // ← cek dulu!
+    setState(() => _data = data);
+  }
+}
+```
+
+### Mistake 6: Lupa Dispose Controller/Listener
+
+```dart
+class MyPage extends StatefulWidget {
+  ...
+}
+
+class _MyPageState extends State<MyPage> {
+  late TextEditingController _controller;
+  late StreamSubscription _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    _subscription = someStream.listen((event) {
+      setState(() => _data = event);
+    });
+  }
+
+  // ❌ Lupa dispose — memory leak!
+  // @override
+  // void dispose() {
+  //   _controller.dispose();
+  //   _subscription.cancel();
+  //   super.dispose();
+  // }
+
+  // ✅ Benar — dispose semua resource
+  @override
+  void dispose() {
+    _controller.dispose();
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+```
+
+Setiap `TextEditingController`, `AnimationController`, `StreamSubscription`, atau `ValueNotifier` yang kamu buat di `initState` WAJIB di-dispose di `dispose()`. Kalau tidak, terjadi memory leak.
+
+## 12. Apa Selanjutnya?
+
+Kamu sudah belajar state management fundamental di Flutter:
+
+- Perbedaan StatelessWidget vs StatefulWidget
+- StatefulWidget lifecycle lengkap
+- `setState()` — trigger rebuild
+- Lifting state up — angkat state ke parent
+- Callback pattern — child komunikasi ke parent
+- Widget tree vs Element tree
+- `ValueNotifier` + `ValueListenableBuilder`
+- Kapan butuh state management external
+- Common mistakes dan cara menghindarinya
+
+State management adalah skill yang paling penting setelah layout dan navigasi. Semakin complex aplikasi kamu, semakin penting cara kamu mengelola state.
+
+### Lanjut ke Tutorial Intermediate: Networking
+
+Setelah ini, kamu siap untuk:
+
+- **Networking** — Fetch data dari REST API dengan `http` package
+- **Error handling** — Loading, error, empty state pattern
+- **Model class** — dari JSON ke object Dart
+
+Tapi sebelum lanjut, pastikan kamu beneran paham `setState()` dan lifecycle. Coba buat aplikasi todo sederhana (input + list) pure pakai setState. Kalau udah bisa, kamu siap naik level.
+
+> **Catatan:** State management external seperti Provider atau Riverpod bukan pengganti setState — mereka bekerja di ATAS setState. Semua state management pada akhirnya panggil setState di suatu tempat. Jadi paham setState adalah prasyarat sebelum pake library apapun.

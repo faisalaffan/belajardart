@@ -1,0 +1,885 @@
+---
+title: Intro Flutter
+description: Kenali Flutter dari dasar — widget tree, StatelessWidget vs StatefulWidget, MaterialApp, hot reload, dan filosofi "everything is a widget."
+---
+
+Selamat datang di tutorial Flutter pertama kamu. Ini adalah fondasinya — kalau kamu paham bagian ini, sisanya akan jauh lebih mudah.
+
+## 1. Apa Itu Flutter?
+
+Flutter adalah **UI toolkit** open-source buatan Google. Satu kode bisa jalan di:
+
+- **Android** (native)
+- **iOS** (native)
+- **Web** (via CanvasKit atau HTML renderer)
+- **Desktop** (macOS, Windows, Linux)
+- **Embedded** (Raspberry Pi, smart display)
+
+Satu codebase untuk semua platform. Bukan webview, bukan JavaScript bridge — Flutter menggambar UI-nya sendiri pakai **Skia** (mesin rendering) atau **Impeller** (mesin baru yang lebih cepat di iOS/Android).
+
+```dart
+// Ini Flutter — semuanya adalah widget
+void main() {
+  runApp(
+    Center(
+      child: Text(
+        'Halo, Flutter! 🌟',
+        textDirection: TextDirection.ltr,
+      ),
+    ),
+  );
+}
+```
+
+Kode di atas menghasilkan tulisan di tengah layar. Cuma `Center` dan `Text` — dua widget. Simpel kan?
+
+### Platform Coverage
+
+| Platform | Status |
+|----------|--------|
+| Android | Stabil (API 21+) |
+| iOS | Stabil (iOS 12+) |
+| Web | Stabil |
+| macOS | Stabil |
+| Windows | Stabil |
+| Linux | Stabil |
+
+## 2. Kenapa Flutter?
+
+Ada banyak cara bikin aplikasi cross-platform. Kenapa pilih Flutter?
+
+### Hot Reload
+
+Ubah kode, lihat hasil dalam < 1 detik. Nggak perlu nunggu compile ulang. Ini game changer buat produktivitas.
+
+```
+// Kamu ubah warna di sini:
+color: Colors.blue  →  color: Colors.red
+
+// Ctrl+S → hasilnya langsung keliatan di emulator
+// Nggak perlu nunggu 10-30 detik
+```
+
+### Expressive UI
+
+Flutter kasih kontrol penuh atas setiap pixel. Mau bikin UI yang complex, animasi halus, custom shape — semua possible tanpa hack.
+
+### Fast Development
+
+- Satu codebase untuk 6 platform
+- Plugin ecosystem yang luas (pub.dev punya > 40.000 packages)
+- Dokumentasi lengkap dari Google
+- Community besar dan aktif
+
+## 3. Filosofi "Everything is a Widget"
+
+Ini konsep paling penting di Flutter. **Semuanya widget.**
+
+Bingung? Mari kita liat:
+
+```dart
+// Layout = widget
+Row(children: [...])
+
+// Styling = widget
+Padding(padding: EdgeInsets.all(8))
+
+// Posisi = widget
+Center(child: ...)
+
+// Dekorasi = widget
+Container(decoration: BoxDecoration(...))
+
+// Interaksi = widget
+GestureDetector(onTap: () {})
+```
+
+Di framework lain, layout, styling, dan interaksi bisa punya sintaks berbeda. Di Flutter? Semuanya widget. Konsisten, predictable, dan mudah di-compose.
+
+### Widget Itu Class Dart
+
+```dart
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text('Ini widget');
+  }
+}
+```
+
+Widget hanyalah **konfigurasi**. Mereka immutable (read-only). Yang berubah adalah **Element** (representasi nyata di layar). Tapi kamu nggak perlu pusing sama Element dulu — cukup ingat: widget = blueprint, Element = rumah yang dibangun dari blueprint.
+
+### Widget Itu Murah
+
+Membuat widget baru itu **sangat murah** secara performa. Jangan takut bikin widget kecil:
+
+```dart
+// ✅ Boleh banget — malah bagus dipisah
+const MyAppBar();
+const MyBodyContent();
+const MyFooter();
+
+// ❌ Jangan taro semuanya di satu widget raksasa
+// yang build()-nya 500 baris
+```
+
+## 4. Widget Tree
+
+Widget membentuk pohon (tree). Ada parent dan child. Flutter nge-render dari root ke leaf.
+
+```
+MaterialApp
+ └── Scaffold
+      ├── AppBar
+      │    └── Text("Judul")
+      ├── body: Column
+      │    ├── Text("Baris 1")
+      │    ├── Text("Baris 2")
+      │    └── Row
+      │         ├── Icon(Icons.star)
+      │         └── Text("Rating")
+      └── floatingActionButton: FAB
+           └── Icon(Icons.add)
+```
+
+Kode Flutter-nya kayak gini:
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Contoh Widget Tree'),
+        ),
+        body: Column(
+          children: [
+            const Text('Baris 1'),
+            const Text('Baris 2'),
+            Row(
+              children: const [
+                Icon(Icons.star, color: Colors.amber),
+                Text(' 4.8 (120 ulasan)'),
+              ],
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {},
+          child: const Icon(Icons.add),
+        ),
+      ),
+    );
+  }
+}
+```
+
+Perhatikan: widget tree di kode **langsung mencerminkan** struktur UI di layar. Ini bikin kode Flutter mudah dibaca dan diprediksi.
+
+### Composition Over Inheritance
+
+Di Flutter, kamu **menggabungkan** widget kecil-kecil jadi UI yang kompleks, bukan mewarisi class raksasa.
+
+```dart
+// ❌ Inheritance (bukan cara Flutter)
+class MyButton extends ElevatedButton { ... }
+
+// ✅ Composition (cara Flutter)
+class MyCustomButton extends StatelessWidget {
+  const MyCustomButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () {},
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.rocket_launch),
+          SizedBox(width: 8),
+          Text('Mulai'),
+        ],
+      ),
+    );
+  }
+}
+```
+
+Composition lebih fleksibel, reusable, dan mudah di-test.
+
+## 5. Entry Point
+
+Setiap aplikasi Flutter dimulai dari fungsi `main()`:
+
+```dart
+void main() {
+  runApp(const MyApp());
+}
+```
+
+Ada dua hal yang terjadi:
+
+1. `main()` dipanggil oleh sistem operasi
+2. `runApp()` menempelkan widget pertama ke layar dan menginisialisasi Flutter engine
+
+Widget pertama ini (biasanya `MaterialApp`) menjadi root dari seluruh widget tree.
+
+### runApp() Tanpa const — Kenapa const?
+
+`runApp(const MyApp())` — kenapa pakai `const`?
+
+```dart
+// ✅ Optimal — widget statis, cukup dibuat sekali
+void main() {
+  runApp(const MyApp());
+}
+
+// ❌ Kurang optimal — MyApp dibuat baru setiap hot reload
+void main() {
+  runApp(MyApp());
+}
+```
+
+Widget yang nggak perlu berubah (statis) sebaiknya `const`. Flutter jadi lebih hemat memori dan performa lebih baik. Latihan: biasakan pakai `const` di constructor setiap widget yang nggak punya state berubah.
+
+## 6. MaterialApp
+
+`MaterialApp` adalah root widget untuk aplikasi gaya Material Design (standar Android/Google). Ini yang paling sering dipakai:
+
+```dart
+MaterialApp(
+  title: 'Aplikasi Saya',
+  theme: ThemeData(
+    primarySwatch: Colors.blue,
+    fontFamily: 'Roboto',
+  ),
+  home: const HomePage(),
+  debugShowCheckedModeBanner: false, // hilangkan banner DEBUG
+)
+```
+
+### Properti Penting MaterialApp
+
+```dart
+MaterialApp(
+  title: 'Belajar Flutter',          // judul aplikasi (untuk task switcher)
+  debugShowCheckedModeBanner: false,  // hilangkan tulisan DEBUG
+  theme: ThemeData(                   // tema global semua halaman
+    primarySwatch: Colors.indigo,
+    visualDensity: VisualDensity.adaptivePlatformDensity,
+  ),
+  darkTheme: ThemeData.dark(),       // tema dark mode
+  themeMode: ThemeMode.system,       // ikuti setting sistem
+  home: const HomePage(),            // halaman pertama
+  routes: {                          // rute bernama
+    '/about': (context) => const AboutPage(),
+    '/settings': (context) => const SettingsPage(),
+  },
+  initialRoute: '/',                 // route awal (alternatif home)
+  locale: const Locale('id', 'ID'),  // lokal Indonesia
+  supportedLocales: const [
+    Locale('id', 'ID'),
+    Locale('en', 'US'),
+  ],
+)
+```
+
+## 7. CupertinoApp Sekilas
+
+Kalau mau gaya iOS (Cupertino), pakai `CupertinoApp`:
+
+```dart
+import 'package:flutter/cupertino.dart';
+
+void main() {
+  runApp(const MyCupertinoApp());
+}
+
+class MyCupertinoApp extends StatelessWidget {
+  const MyCupertinoApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoApp(
+      title: 'Aplikasi iOS Style',
+      theme: const CupertinoThemeData(
+        primaryColor: CupertinoColors.systemBlue,
+      ),
+      home: CupertinoPageScaffold(
+        navigationBar: const CupertinoNavigationBar(
+          middle: Text('Beranda'),
+        ),
+        child: const Center(
+          child: Text('Halo dari CupertinoApp!'),
+        ),
+      ),
+    );
+  }
+}
+```
+
+`CupertinoApp` cocok kalau kamu mau gaya iOS-native. Tapi mayoritas tutorial dan package di Flutter pakai `MaterialApp`. Nggak masalah mix-and-match — kamu bisa pakai MaterialApp di iOS, hasilnya tetap bagus.
+
+## 8. StatelessWidget
+
+`StatelessWidget` adalah widget yang **tidak bisa berubah** setelah dibuat. Properties-nya final, UI-nya tetap dari awal sampai widget dihapus.
+
+### Anatomi
+
+```dart
+class MyProfileCard extends StatelessWidget {
+  const MyProfileCard({
+    super.key,
+    required this.name,
+    required this.bio,
+  });
+
+  final String name;
+  final String bio;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(name, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 8),
+            Text(bio),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+Ciri-ciri `StatelessWidget`:
+
+1. Ada `const constructor` — properties final, wajib
+2. Method `build()` dipanggil **sekali** — terima input dari constructor, output widget
+3. Widget nggak bisa update sendiri. Butuh data baru? Widget parent harus bikin instance baru
+
+### Contoh Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('StatelessWidget Demo')),
+        body: const Center(
+          child: MyProfileCard(
+            name: 'Ahmad Faisal',
+            bio: 'Flutter learner. Suka kopi dan kode.',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MyProfileCard extends StatelessWidget {
+  const MyProfileCard({
+    super.key,
+    required this.name,
+    required this.bio,
+  });
+
+  final String name;
+  final String bio;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircleAvatar(
+              radius: 40,
+              backgroundColor: Colors.indigo,
+              child: Icon(Icons.person, size: 40, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              bio,
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Kenapa Wajib const Constructor?
+
+```dart
+// ✅ Ini bener — constructor const
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});  // keyword const
+  ...
+}
+
+// ❌ Ini bisa error kalau dipanggil sebagai const
+class MyWidget extends StatelessWidget {
+  MyWidget({super.key});  // bukan const — compile warning di certain context
+  ...
+}
+```
+
+Const constructor ngasih tahu Flutter: "widget ini immutable, boleh di-cache". Ini optimasi penting. Tanpa `const`, Flutter mungkin rebuild widget yang sama berulang kali.
+
+## 9. StatefulWidget
+
+`StatefulWidget` adalah widget yang **bisa berubah** setelah dibuat. Punya state internal yang mutable.
+
+### Anatomi — Dua Class
+
+`StatefulWidget` selalu punya dua class terpisah:
+
+```
+StatefulWidget (immutable config)
+        ↓ createState()
+State (mutable — tempat logic & data)
+```
+
+```dart
+// Bagian 1: Widget (immutable)
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+// Bagian 2: State (mutable — hidup selama widget ada di tree)
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;  // state — bisa berubah
+
+  void _increment() {
+    setState(() {
+      _counter++;  // update state, trigger rebuild
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter App')),
+      body: Center(
+        child: Text(
+          'Nilai: $_counter',
+          style: const TextStyle(fontSize: 48),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _increment,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+### Cara Kerja StatefulWidget
+
+1. Flutter panggil `createState()` — bikin objek State
+2. Flutter panggil `initState()` — inisialisasi (panggil sekali)
+3. Flutter panggil `build()` — render UI pertama
+4. User tap tombol → `_increment()` dipanggil
+5. `setState()` memberitahu Flutter: "ada yang berubah, rebuild!"
+6. Flutter panggil `build()` lagi — tampilkan nilai baru
+7. Widget dihapus dari tree → `dispose()` dipanggil
+
+### Contoh Lengkap — Counter App
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Counter App',
+      theme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        useMaterial3: true,
+      ),
+      home: const CounterPage(),
+    );
+  }
+}
+
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;
+
+  void _increment() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  void _decrement() {
+    setState(() {
+      if (_counter > 0) _counter--;
+    });
+  }
+
+  void _reset() {
+    setState(() {
+      _counter = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Counter App'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Kamu menekan tombol:',
+              style: TextStyle(fontSize: 20),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '$_counter',
+              style: const TextStyle(
+                fontSize: 72,
+                fontWeight: FontWeight.bold,
+                color: Colors.indigo,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FloatingActionButton(
+                  onPressed: _decrement,
+                  heroTag: 'decrement',
+                  backgroundColor: Colors.red.shade100,
+                  child: const Icon(Icons.remove),
+                ),
+                const SizedBox(width: 16),
+                FloatingActionButton(
+                  onPressed: _increment,
+                  heroTag: 'increment',
+                  backgroundColor: Colors.green.shade100,
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _reset,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reset'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+## 10. Hot Reload vs Hot Restart
+
+Ini fitur unggulan Flutter. Tapi bedanya apa?
+
+### Hot Reload
+
+Memasukkan perubahan kode ke Dart VM yang sedang berjalan.
+
+```
+Cara pakai:
+- Simpan file (Ctrl+S) — hot reload otomatis
+- Atau tekan 'r' di terminal
+- Atau klik ikon lightning di IDE
+```
+
+**Yang di-reload:**
+- Perubahan UI (build method)
+- Logika baru
+- State yang ada dipertahankan
+
+**Kapan pakai:** Pas ngubah UI, nambah widget, styling.
+
+### Contoh: Kamu punya counter di angka 5. Kamu ubah warna teks. Hot reload → warna berubah, counter tetap 5.
+
+### Hot Restart
+
+Restart aplikasi dari awal.
+
+**Yang terjadi:**
+- Semua state hilang
+- `main()` dipanggil lagi
+- Semua widget di-rebuild dari nol
+
+**Kapan pakai:** Pas ngubah `main()`, `runApp()`, inisialisasi yang cuma jalan sekali, atau perubahan besar di struktur aplikasi.
+
+### Perbandingan Cepat
+
+| Fitur | Hot Reload | Hot Restart |
+|-------|-----------|-------------|
+| Kecepatan | < 1 detik | 2-5 detik |
+| State bertahan | Ya | Tidak |
+| UI berubah | Ya | Ya |
+| main() diulang | Tidak | Ya |
+| Cocok untuk | Styling, layout | Logic inisialisasi |
+
+## 11. Widget Inspector
+
+Flutter punya alat debug widget tree langsung dari IDE (Android Studio, VS Code, IntelliJ).
+
+### Cara Membuka
+
+**VS Code:**
+1. Jalankan aplikasi (debug mode)
+2. Buka Command Palette → `Flutter: Open DevTools`
+3. Pilih "Widget Inspector"
+4. Atau klik "Flutter Inspector" di sidebar
+
+**Android Studio / IntelliJ:**
+1. Jalankan aplikasi
+2. Klik tab "Flutter Inspector" di panel bawah
+
+### Yang Bisa Kamu Lakukan
+
+- **Pilih widget di layar** — lihat posisinya di widget tree
+- **Lihat properties** setiap widget (padding, alignment, color, dll)
+- **Debug layout overflow** — lihat widget mana yang overflow
+- **Toggle baseline** — lihat garis alignment
+
+```dart
+// Tips: Kasih key ke widget yang mau di-inspect
+const Text(
+  'Inspect aku!',
+  key: Key('teks-utama'),
+)
+```
+
+Widget Inspector ini HEBOOH buat debugging layout. Kalau UI kacau, buka Widget Inspector duluan sebelum ubah kode.
+
+## 12. Membaca Error
+
+Error di Flutter dikasih tahu lewat **Red Screen of Death** atau di console. Nggak usah panik — baca pelan-pelan.
+
+### Red Screen of Death (Debug Mode)
+
+Di debug mode, kalau ada error Flutter nampilin layar merah dengan pesan error. Ini cuma di debug mode — production mode nggak nampilin ini (app-nya bakal crash, tapi nggak merah-merah).
+
+### Cara Membaca Stack Trace
+
+```
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═════════════════════
+The following assertion was thrown building MyWidget(dirty):
+I/flutter (12345): 'package:flutter/src/widgets/text.dart':
+Failed assertion: line 123: 'data != null': is not true.
+```
+
+**Cara baca:**
+1. **Cari baris pertama** setelah "EXCEPTION CAUGHT BY..."
+2. **Cari "The following assertion"** — ini deskripsi errornya
+3. **Cari "line X"** atau file path — ini lokasi sumber error
+4. **Cari "Caused by"** atau ". thrown building" — ini widget yang error
+
+### Error Umum
+
+```dart
+// Error: Widget ngasih null ke Text → nge-crash
+const Text(null);  // ❌ ERROR: data != null
+
+// Fix: pastikan string nggak null
+const Text('');    // ✅ string kosong aman
+// atau
+final String? nama;
+Text(nama ?? '');  // ✅ null safety
+```
+
+```dart
+// Error: RenderFlex overflowed
+// Pesan: "Bottom overflowed by X pixels"
+// Artinya: widget kehabisan ruang di layar
+
+// Solusi 1: Bungkus dengan SingleChildScrollView
+SingleChildScrollView(child: Column(...))
+
+// Solusi 2: Pakai Expanded/Flexible
+Column(
+  children: [
+    Expanded(child: Widget1),
+    Expanded(child: Widget2),
+  ],
+)
+
+// Solusi 3: Kurangi ukuran anak-anaknya
+```
+
+### Golden Rule Error
+
+> Baca error dari ATAS ke BAWAH. Jangan lompat ke bawah — Flutter tulis informasi paling penting di atas.
+
+## 13. Common Beginner Mistakes
+
+### Mistake 1: Overflow Tanpa Penanganan
+
+```dart
+// ❌ Salah — kalau anaknya banyak, overflow
+Column(
+  children: banyakWidget,
+)
+
+// ✅ Benar — pake ListView biar bisa scroll
+ListView(
+  children: banyakWidget,
+)
+```
+
+### Mistake 2: build() Terlalu Berat
+
+```dart
+// ❌ Salah — API call di dalam build()
+@override
+Widget build(BuildContext context) {
+  final data = await fetchData();  // ❌ build() harus SINKRON
+  return Text(data);
+}
+
+// ✅ Benar — fetch di initState
+@override
+void initState() {
+  super.initState();
+  fetchData().then((data) {
+    setState(() => _data = data);
+  });
+}
+```
+
+### Mistake 3: Lupa const
+
+```dart
+// ❌ Kurang optimal — Flutter rebuild tiap ada perubahan
+Padding(
+  padding: EdgeInsets.all(16),  // lupa const
+  child: Text('Halo'),
+)
+
+// ✅ Optimal
+const Padding(
+  padding: EdgeInsets.all(16),
+  child: Text('Halo'),
+)
+```
+
+**Kapan const wajib?** Kalau widget statis — nggak ada variable, nggak ada data yang berubah. Di Flutter, `const` bukan cuma gaya — ini optimasi serius.
+
+### Mistake 4: State di StatelessWidget
+
+```dart
+// ❌ Salah — StatelessWidget nggak bisa punya state variable
+class MyCard extends StatelessWidget {
+  int counter = 0;  // ❌ ini bisa diubah tapi nggak trigger rebuild!
+  ...
+}
+
+// ✅ Benar — pake StatefulWidget
+class MyCard extends StatefulWidget {
+  @override
+  State<MyCard> createState() => _MyCardState();
+}
+
+class _MyCardState extends State<MyCard> {
+  int counter = 0;  // ✅ state di sini
+  ...
+}
+```
+
+StatelessWidget boleh punya variable — tapi harus final dan di-set di constructor. Jangan simpan data yang perlu berubah di StatelessWidget, karena perubahan variable nggak akan nge-trigger rebuild.
+
+### Mistake 5: Infinite Loop
+
+```dart
+// ❌ Salah — setState di dalam build() bikin infinite loop
+@override
+Widget build(BuildContext context) {
+  setState(() {});  // ❌ rebuild panggil setState → rebuild lagi...
+  return const Text('Halo');
+}
+```
+
+## 14. Apa Selanjutnya?
+
+Kamu udah belajar konsep paling fundamental di Flutter:
+
+- Apa itu Flutter dan kenapa kamu harus peduli
+- Filosofi "everything is a widget"
+- Widget tree dan composition
+- Entry point, `main()` dan `runApp()`
+- `MaterialApp` dan `CupertinoApp`
+- `StatelessWidget` vs `StatefulWidget`
+- Hot reload vs hot restart
+- Widget Inspector
+- Cara baca error Flutter
+- Common mistakes
+
+Sekarang saatnya naik level.
+
+### Lanjut ke Tutorial Berikutnya
+
+**[Layout Basics](./layout-basics.mdx)** — Pelajari Scaffold, Container, Row, Column, Expanded, dan cara menyusun UI dengan proper.
+
+Di tutorial itu kamu akan bikin halaman profil sederhana dan paham beda `Expanded` vs `Flexible`. Ini fondasi berikutnya setelah kamu paham widget.
+
+> **Catatan:** Kode di tutorial ini bisa langsung di-copy ke `main.dart` dan jalanin `flutter run`. Praktikkan satu-satu, jangan cuma dibaca. Kode yang kamu TULIS sendiri akan lebih diingat daripada kode yang kamu baca.
