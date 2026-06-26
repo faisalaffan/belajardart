@@ -1,0 +1,192 @@
+---
+title: Widget Input
+description: Referensi widget input Flutter — TextField, TextFormField, Form, Checkbox, Switch, Slider, DropdownButton — untuk menerima input pengguna.
+---
+
+# Widget Input
+
+Widget untuk menerima input dari pengguna — teks, pilihan, angka, toggle.
+
+## TextField
+
+Input teks paling dasar. Gunakan `TextEditingController` untuk membaca dan mengontrol teks.
+
+```dart
+final TextEditingController _controller = TextEditingController();
+
+TextField(
+  controller: _controller,
+  decoration: InputDecoration(
+    labelText: 'Nama',
+    hintText: 'Masukkan nama lengkap',
+    prefixIcon: Icon(Icons.person),
+    suffixIcon: IconButton(
+      icon: Icon(Icons.clear),
+      onPressed: () => _controller.clear(),
+    ),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    errorText: 'Nama wajib diisi',
+    helperText: 'Minimal 3 karakter',
+  ),
+  keyboardType: TextInputType.text,
+  maxLength: 50,
+  onChanged: (value) => print('Current: $value'),
+  onSubmitted: (value) => print('Final: $value'),
+)
+
+// Jangan lupa dispose
+@override
+void dispose() {
+  _controller.dispose();
+  super.dispose();
+}
+```
+
+### keyboardType
+
+```dart
+TextInputType.text          // teks biasa
+TextInputType.number        // angka
+TextInputType.emailAddress  // email
+TextInputType.phone         // telepon
+TextInputType.url           // URL
+TextInputType.multiline     // teks banyak baris
+```
+
+## TextFormField & Form
+
+Untuk form dengan validasi — gunakan `TextFormField` di dalam `Form`.
+
+```dart
+final _formKey = GlobalKey<FormState>();
+
+Form(
+  key: _formKey,
+  autovalidateMode: AutovalidateMode.onUserInteraction,
+  child: Column(
+    children: [
+      TextFormField(
+        decoration: const InputDecoration(labelText: 'Email'),
+        keyboardType: TextInputType.emailAddress,
+        validator: (value) {
+          if (value == null || value.isEmpty) return 'Email wajib diisi';
+          if (!value.contains('@')) return 'Format email tidak valid';
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        decoration: const InputDecoration(labelText: 'Password'),
+        obscureText: true,
+        validator: (value) {
+          if (value == null || value.length < 6) return 'Minimal 6 karakter';
+          return null;
+        },
+      ),
+      const SizedBox(height: 24),
+      ElevatedButton(
+        onPressed: () {
+          if (_formKey.currentState!.validate()) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Form valid!')),
+            );
+          }
+        },
+        child: const Text('Submit'),
+      ),
+    ],
+  ),
+)
+```
+
+### autovalidateMode
+
+| Value | Perilaku |
+|-------|----------|
+| `disabled` | Tidak validasi otomatis |
+| `onUserInteraction` | Validasi setelah user mengubah field |
+| `always` | Validasi setiap rebuild |
+
+## Checkbox & Switch
+
+```dart
+// Checkbox
+Row(
+  children: [
+    Checkbox(value: _isChecked, onChanged: (v) => setState(() => _isChecked = v!)),
+    const Text('Saya setuju dengan syarat dan ketentuan'),
+  ],
+)
+
+// Switch
+SwitchListTile(
+  title: const Text('Dark Mode'),
+  value: _isDarkMode,
+  onChanged: (v) => setState(() => _isDarkMode = v),
+  secondary: const Icon(Icons.dark_mode),
+)
+```
+
+## Slider
+
+```dart
+Slider(
+  value: _volume,
+  min: 0,
+  max: 100,
+  divisions: 10,
+  label: '${_volume.round()}%',
+  onChanged: (value) => setState(() => _volume = value),
+)
+```
+
+## DropdownButton
+
+```dart
+String _selected = 'dart';
+
+DropdownButton<String>(
+  value: _selected,
+  items: const [
+    DropdownMenuItem(value: 'dart', child: Text('Dart')),
+    DropdownMenuItem(value: 'flutter', child: Text('Flutter')),
+    DropdownMenuItem(value: 'python', child: Text('Python')),
+  ],
+  onChanged: (value) => setState(() => _selected = value!),
+  isExpanded: true,
+)
+```
+
+## Radio
+
+```dart
+enum Gender { male, female }
+
+Gender _gender = Gender.male;
+
+Column(
+  children: [
+    RadioListTile<Gender>(
+      title: const Text('Laki-laki'),
+      value: Gender.male,
+      groupValue: _gender,
+      onChanged: (v) => setState(() => _gender = v!),
+    ),
+    RadioListTile<Gender>(
+      title: const Text('Perempuan'),
+      value: Gender.female,
+      groupValue: _gender,
+      onChanged: (v) => setState(() => _gender = v!),
+    ),
+  ],
+)
+```
+
+## Tips
+
+- **Dispose controller** — selalu `dispose()` di dalam `State.dispose()` untuk mencegah memory leak
+- **FocusNode** — gunakan `FocusNode` untuk mengontrol focus antar field
+- **InputDecoration** — styling standar biar konsisten di semua form
+- **autovalidateMode** — `onUserInteraction` adalah sweet spot
+
+[Jelajahi Widget Scrolling →](/docs/widget-catalog/scrolling)

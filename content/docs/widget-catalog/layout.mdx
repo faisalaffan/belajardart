@@ -1,0 +1,217 @@
+---
+title: Widget Layout
+description: Referensi widget layout Flutter — Container, Row, Column, Stack, Expanded, Flexible, SizedBox, Wrap — lengkap dengan contoh dan visual layout.
+---
+
+# Widget Layout
+
+Widget untuk mengatur tata letak (layout) elemen UI di Flutter. Ini adalah widget yang paling sering Anda gunakan.
+
+## Container
+
+`Container` — widget serbaguna untuk wrapping, padding, margin, decoration, dan sizing.
+
+```dart
+Container(
+  width: 200,
+  height: 100,
+  padding: const EdgeInsets.all(16),
+  margin: const EdgeInsets.only(top: 8),
+  decoration: BoxDecoration(
+    color: Colors.blue.shade100,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: Colors.blue, width: 2),
+    boxShadow: [
+      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2)),
+    ],
+  ),
+  child: const Text('Hello Container'),
+)
+```
+
+### Properti Penting
+
+| Properti | Fungsi |
+|----------|--------|
+| `width` / `height` | Ukuran eksplisit |
+| `padding` | Jarak dalam (child ke tepi Container) |
+| `margin` | Jarak luar (Container ke parent/sibling) |
+| `decoration` | Background, border, shadow, gradient |
+| `constraints` | Batasan ukuran min/max (BoxConstraints) |
+| `alignment` | Posisi child di dalam Container |
+
+### Common Mistakes
+
+- **Container tanpa child + tanpa size = 0x0.** Container hanya sebesar child-nya kecuali diberi constraint.
+- **Decoration vs color**: pakai `color` ATAU `decoration`, tidak bisa keduanya. Kalau butuh decoration + background, taruh `color` di dalam `decoration`.
+
+## Row & Column
+
+`Row` — susunan horizontal. `Column` — susunan vertikal.
+
+```dart
+Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  crossAxisAlignment: CrossAxisAlignment.center,
+  children: [
+    Icon(Icons.star, color: Colors.amber),
+    const SizedBox(width: 8),
+    Text('4.5', style: TextStyle(fontSize: 16)),
+    const Spacer(),
+    TextButton(onPressed: () {}, child: const Text('Review')),
+  ],
+)
+```
+
+```dart
+Column(
+  mainAxisAlignment: MainAxisAlignment.center,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text('Nama', style: Theme.of(context).textTheme.titleMedium),
+    const SizedBox(height: 8),
+    TextField(decoration: InputDecoration(hintText: 'Masukkan nama')),
+    const SizedBox(height: 16),
+    ElevatedButton(onPressed: () {}, child: const Text('Submit')),
+  ],
+)
+```
+
+### MainAxisAlignment (Row = horizontal, Column = vertical)
+
+| Value | Efek |
+|-------|------|
+| `start` | Rapat kiri (Row) / atas (Column) — **default** |
+| `end` | Rapat kanan/bawah |
+| `center` | Tengah |
+| `spaceBetween` | Rata kiri-kanan, gap di antara |
+| `spaceAround` | Gap di sekitar setiap child |
+| `spaceEvenly` | Gap seragam |
+
+### CrossAxisAlignment (Row = vertical, Column = horizontal)
+
+| Value | Efek |
+|-------|------|
+| `start` | Rapat atas (Row) / kiri (Column) |
+| `end` | Rapat bawah/kanan |
+| `center` | Tengah |
+| `stretch` | Paksa child sebesar cross-axis |
+| `baseline` | Align text baseline |
+
+## Expanded & Flexible
+
+Keduanya hanya bisa dipakai di dalam Row/Column/Flex.
+
+- **Expanded**: wajib mengisi ruang tersisa. Bisa dikasih flex ratio.
+- **Flexible**: mengisi ruang tersisa TAPI bisa lebih kecil dari available space (tidak dipaksa).
+
+```dart
+Row(
+  children: [
+    Expanded(
+      flex: 2,
+      child: Container(color: Colors.red, height: 50),
+    ), // 2/5 ruang
+    Expanded(
+      flex: 3,
+      child: Container(color: Colors.blue, height: 50),
+    ), // 3/5 ruang
+  ],
+)
+```
+
+```dart
+// Flexible TIDAK memaksa child mengisi semua ruang
+Row(
+  children: [
+    Flexible(child: Text('Teks panjang yang akan wrap kalau melebihi lebar...')),
+  ],
+)
+```
+
+## Stack
+
+Stack menumpuk widget di atas satu sama lain. Urutan children = urutan tumpukan (pertama paling bawah).
+
+```dart
+Stack(
+  children: [
+    Container(width: 200, height: 200, color: Colors.blue),
+    Positioned(
+      top: 16,
+      right: 16,
+      child: Container(width: 60, height: 60, color: Colors.red),
+    ),
+    Positioned(
+      bottom: 8,
+      left: 8,
+      child: Text('Bottom Left', style: TextStyle(color: Colors.white)),
+    ),
+  ],
+)
+```
+
+### Positioned
+
+`Positioned` hanya bisa dipakai di dalam Stack. Properti: `top`, `bottom`, `left`, `right`, `width`, `height`.
+
+## SizedBox
+
+Widget tak terlihat untuk memberi ukuran atau jarak eksplisit.
+
+```dart
+// Spacer vertikal
+const SizedBox(height: 16)
+
+// Spacer horizontal
+const SizedBox(width: 8)
+
+// Ukuran fixed untuk child
+SizedBox(
+  width: 100,
+  height: 100,
+  child: ElevatedButton(onPressed: () {}, child: Text('OK')),
+)
+```
+
+## Wrap
+
+Seperti Row tapi auto-wrap ke baris baru kalau melebihi lebar.
+
+```dart
+Wrap(
+  spacing: 8,
+  runSpacing: 4,
+  children: [
+    Chip(label: Text('Dart')),
+    Chip(label: Text('Flutter')),
+    Chip(label: Text('React')),
+    Chip(label: Text('TypeScript')),
+    Chip(label: Text('Rust')),
+    Chip(label: Text('Go')),
+    Chip(label: Text('Python')),
+  ],
+)
+```
+
+## SafeArea
+
+Mencegah konten tertutup notch, status bar, atau home indicator.
+
+```dart
+Scaffold(
+  body: SafeArea(
+    child: Column(children: [
+      Text('Konten aman dari notch dan status bar'),
+    ]),
+  ),
+)
+```
+
+## Tips Layout
+
+- **Row overflow** — kalau children melebihi lebar, bungkus dengan `Expanded`/`Flexible` atau gunakan `Wrap`
+- **Gunakan `const`** — widget layout adalah kandidat terbaik untuk `const` karena jarang berubah
+- **Prefer SizedBox over Container** — `SizedBox(height: 16)` lebih ringan dari `Container(height: 16)`
+
+[Jelajahi Widget Text & Display →](/docs/widget-catalog/text-display)

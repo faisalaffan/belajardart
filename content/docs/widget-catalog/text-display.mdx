@@ -1,0 +1,182 @@
+---
+title: Widget Text & Display
+description: Referensi widget tampilan Flutter — Text, RichText, Icon, Image, CircleAvatar, Chip, Badge — untuk menampilkan konten visual.
+---
+
+# Text & Display
+
+Widget untuk menampilkan teks, ikon, gambar, dan elemen visual lainnya.
+
+## Text
+
+Widget paling dasar untuk menampilkan teks.
+
+```dart
+Text(
+  'Hello Flutter!',
+  style: TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.bold,
+    color: Colors.blue,
+    letterSpacing: 1.2,
+    height: 1.5,
+  ),
+  textAlign: TextAlign.center,
+  maxLines: 2,
+  overflow: TextOverflow.ellipsis,
+)
+```
+
+### TextStyle Umum
+
+```dart
+TextStyle(
+  fontSize: 16,
+  fontWeight: FontWeight.w600,
+  fontStyle: FontStyle.italic,
+  color: Colors.grey.shade700,
+  decoration: TextDecoration.underline,
+  letterSpacing: 0.5,
+  height: 1.4,
+  fontFamily: 'Roboto',
+)
+```
+
+### DefaultTextStyle
+
+Mewarisi text style ke seluruh subtree:
+
+```dart
+DefaultTextStyle(
+  style: TextStyle(fontSize: 18, color: Colors.white),
+  child: Column(
+    children: [
+      Text('Ini 18px putih'),
+      Text('Juga 18px putih'),
+      Text('Override', style: TextStyle(fontSize: 24)),
+    ],
+  ),
+)
+```
+
+## RichText
+
+Text dengan multiple style dalam satu widget.
+
+```dart
+RichText(
+  text: TextSpan(
+    style: TextStyle(fontSize: 16, color: Colors.black),
+    children: [
+      TextSpan(text: 'Setuju '),
+      TextSpan(
+        text: 'Syarat dan Ketentuan',
+        style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+      ),
+      TextSpan(text: ' kami.'),
+    ],
+  ),
+)
+```
+
+Flutter juga menyediakan `Text.rich()` sebagai shortcut:
+
+```dart
+Text.rich(TextSpan(children: [...]))
+```
+
+## Icon
+
+```dart
+Icon(Icons.star, size: 32, color: Colors.amber)
+```
+
+### Ikon Built-in
+
+Flutter menyediakan ribuan ikon via `Icons` class: `Icons.home`, `Icons.search`, `Icons.settings`, `Icons.add`, `Icons.delete`, `Icons.edit`, `Icons.arrow_back`, `Icons.menu`, `Icons.person`, `Icons.email`, `Icons.phone`, `Icons.favorite`, `Icons.shopping_cart`.
+
+### IconButton
+
+```dart
+IconButton(
+  icon: const Icon(Icons.favorite_border),
+  onPressed: () => print('Liked!'),
+  tooltip: 'Like',
+  color: Colors.red,
+  iconSize: 28,
+)
+```
+
+## Image
+
+### Asset Image
+
+```dart
+// 1. Deklarasi di pubspec.yaml:
+// assets:
+//   - assets/images/logo.png
+
+// 2. Gunakan:
+Image.asset('assets/images/logo.png', width: 120, height: 120, fit: BoxFit.cover)
+```
+
+### Network Image
+
+```dart
+Image.network(
+  'https://example.com/photo.jpg',
+  fit: BoxFit.cover,
+  loadingBuilder: (ctx, child, progress) {
+    if (progress == null) return child;
+    return const Center(child: CircularProgressIndicator());
+  },
+  errorBuilder: (ctx, error, stack) => const Icon(Icons.broken_image),
+)
+```
+
+### BoxFit Values
+
+| Value | Efek |
+|-------|------|
+| `cover` | Isi area, crop jika perlu (paling umum) |
+| `contain` | Muat seluruh gambar, mungkin ada ruang kosong |
+| `fill` | Paksa isi area — distort aspek rasio |
+| `fitWidth` | Lebar pas, tinggi menyesuaikan |
+| `fitHeight` | Tinggi pas, lebar menyesuaikan |
+| `none` | Tidak di-scale |
+| `scaleDown` | Seperti contain tapi tidak memperbesar |
+
+## CircleAvatar
+
+```dart
+// Dengan gambar
+CircleAvatar(radius: 30, backgroundImage: NetworkImage('https://example.com/avatar.jpg'))
+
+// Dengan inisial
+CircleAvatar(radius: 24, backgroundColor: Colors.blue, child: Text('FA', style: TextStyle(color: Colors.white)))
+```
+
+## Chip
+
+```dart
+// Basic chip
+Chip(label: Text('Flutter'), onDeleted: () => print('Removed'))
+
+// Filter chip
+FilterChip(label: Text('Aktif'), selected: isSelected, onSelected: (bool s) => setState(() => isSelected = s))
+
+// Input chip
+InputChip(label: Text('Tag'), onPressed: () {})
+
+// Choice chip
+ChoiceChip(label: Text('Option'), selected: true, onSelected: (_) {})
+```
+
+## Tips
+
+- **Text di AppBar** — gunakan `AppBar(title: Text('Judul'))` bukan Text standalone
+- **Image caching** — `Image.network` otomatis cache. Untuk kontrol lebih: `cached_network_image` package
+- **Ikon di tombol** — `ElevatedButton.icon(icon: Icon(...), label: Text(...), onPressed: () {})`
+- **Text multiline** — Text otomatis wrap. Batasi dengan `maxLines` + `overflow: TextOverflow.ellipsis`
+
+[Jelajahi Widget Input →](/docs/widget-catalog/input)

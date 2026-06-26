@@ -1,0 +1,205 @@
+---
+title: Widget Scrolling
+description: Referensi widget scrolling Flutter — ListView, GridView, SingleChildScrollView, CustomScrollView, ScrollController — untuk konten yang bisa di-scroll.
+---
+
+# Widget Scrolling
+
+Flutter menyediakan widget scrolling yang powerful untuk menangani konten panjang atau daftar data.
+
+## SingleChildScrollView
+
+Untuk konten tunggal yang perlu di-scroll. Ideal untuk halaman statis panjang.
+
+```dart
+SingleChildScrollView(
+  padding: const EdgeInsets.all(16),
+  child: Column(children: [
+    HeaderSection(),
+    ContentSection(),
+    FooterSection(),
+  ]),
+)
+```
+
+**Kapan pakai**: Form panjang, article page, detail page.
+**Kapan TIDAK**: List ribuan item — gunakan ListView.builder.
+
+## ListView
+
+### ListView (default) — untuk list pendek
+
+```dart
+ListView(
+  padding: const EdgeInsets.all(8),
+  children: [
+    ListTile(title: Text('Item 1')),
+    ListTile(title: Text('Item 2')),
+    ListTile(title: Text('Item 3')),
+  ],
+)
+```
+
+### ListView.builder — untuk list panjang/ dinamis
+
+```dart
+ListView.builder(
+  itemCount: items.length,
+  itemBuilder: (context, index) {
+    return ListTile(
+      leading: CircleAvatar(child: Text('${index + 1}')),
+      title: Text(items[index].name),
+      subtitle: Text(items[index].description),
+      onTap: () => _openDetail(items[index]),
+    );
+  },
+)
+```
+
+Hanya me-render item yang terlihat di layar (lazy). Bisa menangani ribuan item tanpa masalah performa.
+
+### ListView.separated — list dengan separator
+
+```dart
+ListView.separated(
+  itemCount: items.length,
+  separatorBuilder: (context, index) => const Divider(height: 1),
+  itemBuilder: (context, index) => ListTile(title: Text(items[index])),
+)
+```
+
+### Scroll Direction
+
+```dart
+// Horizontal scroll
+ListView(
+  scrollDirection: Axis.horizontal,
+  children: [_buildCard(), _buildCard(), _buildCard()],
+)
+```
+
+## GridView
+
+### GridView.count — grid dengan kolom tetap
+
+```dart
+GridView.count(
+  crossAxisCount: 2,
+  crossAxisSpacing: 8,
+  mainAxisSpacing: 8,
+  padding: const EdgeInsets.all(16),
+  children: [
+    _buildGridItem('Item 1'),
+    _buildGridItem('Item 2'),
+    _buildGridItem('Item 3'),
+    _buildGridItem('Item 4'),
+  ],
+)
+```
+
+### GridView.builder — grid dinamis
+
+```dart
+GridView.builder(
+  padding: const EdgeInsets.all(8),
+  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 3,
+    crossAxisSpacing: 8,
+    mainAxisSpacing: 8,
+    childAspectRatio: 0.8,
+  ),
+  itemCount: images.length,
+  itemBuilder: (context, index) => Card(child: Image.network(images[index])),
+)
+```
+
+### Flexible Cross-Axis Count
+
+```dart
+SliverGridDelegateWithMaxCrossAxisExtent(
+  maxCrossAxisExtent: 150,
+  crossAxisSpacing: 8,
+  mainAxisSpacing: 8,
+)
+```
+
+## RefreshIndicator
+
+Pull-to-refresh standar Android/iOS.
+
+```dart
+RefreshIndicator(
+  onRefresh: () async {
+    await fetchNewData();
+    setState(() {});
+  },
+  child: ListView.builder(
+    itemCount: items.length,
+    itemBuilder: (context, index) => ListTile(title: Text(items[index])),
+  ),
+)
+```
+
+## ScrollController
+
+Kontrol scrolling secara programmatic.
+
+```dart
+final ScrollController _scrollController = ScrollController();
+
+// Scroll ke atas
+_scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+
+// Deteksi posisi scroll
+_scrollController.addListener(() {
+  if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 100) {
+    _loadMore();
+  }
+});
+
+// Jangan lupa dispose
+@override
+void dispose() {
+  _scrollController.dispose();
+  super.dispose();
+}
+```
+
+## CustomScrollView & Slivers
+
+Untuk layout scrolling kompleks — gabungan header, grid, list dalam satu scroll.
+
+```dart
+CustomScrollView(
+  slivers: [
+    SliverAppBar(expandedHeight: 200, flexibleSpace: FlexibleSpaceBar(title: Text('Title')), pinned: true),
+    SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(16), child: Text('Deskripsi'))),
+    SliverGrid(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+      delegate: SliverChildBuilderDelegate((ctx, i) => Card(child: Center(child: Text('$i'))), childCount: 20),
+    ),
+    SliverList(
+      delegate: SliverChildBuilderDelegate((ctx, i) => ListTile(title: Text('More $i')), childCount: 10),
+    ),
+  ],
+)
+```
+
+### Sliver Types
+
+| Widget | Fungsi |
+|--------|--------|
+| `SliverAppBar` | AppBar yang bisa collapse/expand saat scroll |
+| `SliverList` | List di dalam CustomScrollView |
+| `SliverGrid` | Grid di dalam CustomScrollView |
+| `SliverToBoxAdapter` | Widget non-sliver di dalam CustomScrollView |
+| `SliverFillRemaining` | Isi sisa ruang (cocok untuk empty state) |
+
+## Tips Performa
+
+- **ListView.builder selalu > ListView** — untuk list > 20 item, selalu pakai builder
+- **Gunakan `itemExtent`** — kalau semua item punya tinggi sama, set `itemExtent` untuk performa lebih baik
+- **Hindari nested scroll** — jangan taruh ListView di dalam SingleChildScrollView tanpa `shrinkWrap: true`
+- **shrinkWrap mahal** — gunakan hanya jika benar-benar perlu
+
+[Jelajahi Cheatsheet →](/docs/cheatsheets)
