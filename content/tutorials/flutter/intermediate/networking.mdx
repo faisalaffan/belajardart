@@ -1,0 +1,553 @@
+---
+title: Networking — HTTP & REST API
+description: Pelajari networking di Flutter — HTTP request, JSON serialization, error handling, loading states, dan repository pattern dengan http dan dio package.
+---
+
+## Pengantar
+
+Mobile apps perlu komunikasi dengan server — ambil data feed, kirim form, sinkronisasi. Di Flutter, networking dilakukan via HTTP/HTTPS menggunakan `http` (ringan) atau `dio` (interceptor, cancel token, file upload).
+
+## 1. Setup
+
+```yaml
+dependencies:
+  http: ^1.2.0
+```
+
+```bash
+flutter pub get
+```
+
+## 2. GET Request
+
+```dart
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+class Post {
+  final int id;
+  final String title;
+  final String body;
+  Post({required this.id, required this.title, required this.body});
+
+  factory Post.fromJson(Map<String, dynamic> json) => Post(
+        id: json['id'] as int,
+        title: json['title'] as String,
+        body: json['body'] as String,
+      );
+}
+
+Future<List<Post>> fetchPosts() async {
+  final response = await http
+      .get(Uri.parse('https://jsonplaceholder.typicode.com/posts'));
+
+  if (response.statusCode == 200) {
+    final list = jsonDecode(response.body) as List;
+    return list
+        .map((j) => Post.fromJson(j as Map<String, dynamic>))
+        .toList();
+  } else {
+    throw HttpException('Failed: ${response.statusCode}');
+  }
+}
+
+class HttpException implements Exception {
+  final String message;
+  HttpException(this.message);
+  @override
+  String toString() => message;
+}
+```
+
+`http.Response` memiliki: `statusCode` (int), `body` (String), `headers` (Map).
+
+> **Penting**: Selalu pakai `Uri.parse(url)`, bukan string mentah.
+
+## 3. POST / PUT / DELETE
+
+```dart
+Future<Post> createPost(Post post) async {
+  final res = await http.post(
+    Uri.parse('https://jsonplaceholder.typicode.com/posts'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'title': post.title, 'body': post.body}),
+  );
+  if (res.statusCode == 201) {
+    return Post.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+  throw HttpException('Create failed: ${res.statusCode}');
+}
+
+Future<void> deletePost(int id) async {
+  final res = await http
+      .delete(Uri.parse('https://jsonplaceholder.typicode.com/posts/$id'));
+  if (res.statusCode != 200 && res.statusCode != 204) {
+    throw HttpException('Delete failed: ${res.statusCode}');
+  }
+}
+```
+
+Headers umum: `Content-Type`, `Authorization: Bearer $token`, `Accept`.
+
+## 4. JSON Parsing — Model Class
+
+```dart
+class User {
+  final int id;
+  final String name;
+  final String email;
+  final Address? address;
+
+  const User({
+    required this.id, required this.name, required this.email, this.address,
+  });
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        email: json['email'] as String,
+        address: json['address'] != null
+            ? Address.fromJson(json['address'] as Map<String, dynamic>)
+            : null,
+      );
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'email': email};
+}
+
+class Address {
+  final String street;
+  final String city;
+  const Address({required this.street, required this.city});
+
+  factory Address.fromJson(Map<String, dynamic> json) => Address(
+        street: json['street'] as String? ?? '',
+        city: json['city'] as String? ?? '',
+      );
+}
+```
+
+Pattern: `factory fromJson` + `toJson`. Gunakan `as String` cast + null safety dengan `??`.
+
+## 5. Error Handling
+
+```dart
+sealed class AppException implements Exception {
+  final String message;
+  const AppException(this.message);
+}
+
+class NetworkException extends AppException {
+  const NetworkException(super.message);
+}
+
+class ServerException extends AppException {
+  final int statusCode;
+  const ServerException(this.statusCode, super.message);
+}
+
+class ParsingException extends AppException {
+  const ParsingException(super.message);
+}
+
+Future<List<Post>> fetchPostsSafe() async {
+  try {
+    final res = await http
+        .get(Uri.parse('https://jsonplaceholder.typicode.com/posts'))
+        .timeout(const Duration(seconds: 10));
+
+    if (res.statusCode != 200) throw ServerException(res.statusCode, res.body);
+
+    final list = jsonDecode(res.body) as List;
+    return list.map((j) => Post.fromJson(j as Map<String, dynamic>)).toList();
+  } on SocketException {
+    throw const NetworkException('No internet connection');
+  } on TimeoutException {
+    throw const NetworkException('Request timed out');
+  } on FormatException {
+    throw const ParsingException('Invalid JSON');
+  }
+}
+```
+
+> **Common Mistakes**: catch Exception generic tanpa bedain tipe. Bedakan `SocketException` (offline) vs status code (server) vs `FormatException` (parsing).
+
+## 6. Loading States dengan Enum
+
+```dart
+enum NetworkState { idle, loading, success, error }
+
+class PostsViewModel extends ChangeNotifier {
+  final PostService _service = PostService();
+  NetworkState state = NetworkState.idle;
+  List<Post> posts = [];
+  String errorMessage = '';
+
+  Future<void> loadPosts() async {
+    state = NetworkState.loading;
+    errorMessage = '';
+    notifyListeners();
+    try {
+      posts = await _service.fetchPostsSafe();
+      state = NetworkState.success;
+    } on AppException catch (e) {
+      errorMessage = e.message;
+      state = NetworkState.error;
+    }
+    notifyListeners();
+  }
+}
+```
+
+### UI dengan FutureBuilder
+
+```dart
+FutureBuilder<List<Post>>(
+  future: PostService().fetchPostsSafe(),
+  builder: (context, snapshot) {
+    switch (snapshot.connectionState) {
+      case ConnectionState.waiting:
+        return const Center(child: CircularProgressIndicator());
+      case ConnectionState.done:
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Error: ${snapshot.error}'),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: () {}, child: const Text('Retry')),
+              ],
+            ),
+          );
+        }
+        final posts = snapshot.data!;
+        return ListView.builder(
+          itemCount: posts.length,
+          itemBuilder: (_, i) => ListTile(title: Text(posts[i].title)),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  },
+)
+```
+
+> **Catatan**: FutureBuilder cocok untuk sekali-load. Untuk retry/refresh/pagination, gunakan `ChangeNotifier`.
+
+## 7. json_serializable — Code Generation
+
+```yaml
+dependencies:
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  json_serializable: ^6.8.0
+```
+
+```dart
+import 'package:json_annotation/json_annotation.dart';
+part 'product.g.dart';
+
+@JsonSerializable()
+class Product {
+  final int id;
+  final String name;
+  final double price;
+
+  @JsonKey(name: 'category_name')
+  final String? categoryName;
+
+  @JsonKey(defaultValue: 0)
+  final int stock;
+
+  const Product({
+    required this.id, required this.name, required this.price,
+    this.categoryName, this.stock = 0,
+  });
+
+  factory Product.fromJson(Map<String, dynamic> json) =>
+      _$ProductFromJson(json);
+  Map<String, dynamic> toJson() => _$ProductToJson(this);
+}
+```
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
+
+`@JsonKey`: `name` (field mapping), `defaultValue`, `includeIfNull: false`, `ignore: true`.
+
+## 8. Dio — HTTP Client Advanced
+
+```yaml
+dependencies:
+  dio: ^5.4.0
+```
+
+```dart
+import 'package:dio/dio.dart';
+
+class ApiClient {
+  late final Dio _dio;
+
+  ApiClient({required String baseUrl}) {
+    _dio = Dio(BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    ));
+  }
+
+  Future<Response> get(String path, {Map<String, dynamic>? params}) =>
+      _dio.get(path, queryParameters: params);
+
+  Future<Response> post(String path, {dynamic data}) =>
+      _dio.post(path, data: data);
+
+  Future<Response> put(String path, {dynamic data}) =>
+      _dio.put(path, data: data);
+
+  Future<Response> delete(String path) => _dio.delete(path);
+}
+```
+
+### Interceptors
+
+```dart
+class AuthInterceptor extends Interceptor {
+  final String Function() getToken;
+  AuthInterceptor({required this.getToken});
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final token = getToken();
+    if (token.isNotEmpty) options.headers['Authorization'] = 'Bearer $token';
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.response?.statusCode == 401) {
+      // trigger logout / refresh token
+    }
+    handler.next(err);
+  }
+}
+```
+
+### File Upload
+
+```dart
+Future<String> uploadImage(String filePath) async {
+  final formData = FormData.fromMap({
+    'file': await MultipartFile.fromFile(filePath, filename: 'photo.jpg'),
+  });
+  final res = await _dio.post('/upload', data: formData);
+  return res.data['url'] as String;
+}
+```
+
+### Cancel Token
+
+```dart
+CancelToken? _cancelToken;
+
+Future<List<Product>> search(String q) async {
+  _cancelToken?.cancel('Cancelled');
+  _cancelToken = CancelToken();
+  try {
+    final res = await _dio.get('/products/search',
+        queryParameters: {'q': q}, cancelToken: _cancelToken);
+    return (res.data as List)
+        .map((j) => Product.fromJson(j as Map<String, dynamic>))
+        .toList();
+  } on DioException catch (e) {
+    if (e.type == DioExceptionType.cancel) return [];
+    rethrow;
+  }
+}
+```
+
+## 9. Repository Pattern
+
+Abstraction layer antara data source dan business logic. Membuat kode testable.
+
+```dart
+abstract class PostRepository {
+  Future<List<Post>> getPosts();
+  Future<Post> createPost(Post post);
+  Future<void> deletePost(int id);
+}
+
+class PostHttpRepo implements PostRepository {
+  @override
+  Future<List<Post>> getPosts() async {
+    final res = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/posts'));
+    if (res.statusCode != 200) throw ServerException(res.statusCode, 'Failed');
+    return (jsonDecode(res.body) as List)
+        .map((j) => Post.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<Post> createPost(Post post) async {
+    final res = await http.post(Uri.parse('https://jsonplaceholder.typicode.com/posts'),
+        headers: {'Content-Type': 'application/json'}, body: jsonEncode(post.toJson()));
+    if (res.statusCode != 201) throw ServerException(res.statusCode, 'Create failed');
+    return Post.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> deletePost(int id) async {
+    final res = await http.delete(Uri.parse('https://jsonplaceholder.typicode.com/posts/$id'));
+    if (res.statusCode != 200 && res.statusCode != 204) throw ServerException(res.statusCode, 'Delete failed');
+  }
+}
+
+class PostListViewModel extends ChangeNotifier {
+  final PostRepository _repository;
+  PostListViewModel({required PostRepository repository}) : _repository = repository;
+
+  NetworkState state = NetworkState.idle;
+  List<Post> posts = [];
+  String errorMessage = '';
+
+  Future<void> loadPosts() async {
+    state = NetworkState.loading;
+    notifyListeners();
+    try {
+      posts = await _repository.getPosts();
+      state = NetworkState.success;
+    } on AppException catch (e) {
+      errorMessage = e.message;
+      state = NetworkState.error;
+    }
+    notifyListeners();
+  }
+}
+
+// Mock untuk testing
+class MockPostRepo implements PostRepository {
+  final List<Post> posts;
+  final bool shouldThrow;
+  MockPostRepo({this.posts = const [], this.shouldThrow = false});
+
+  @override
+  Future<List<Post>> getPosts() async {
+    if (shouldThrow) throw NetworkException('Mock error');
+    return posts;
+  }
+
+  @override
+  Future<Post> createPost(Post post) async => post;
+
+  @override
+  Future<void> deletePost(int id) async {}
+}
+```
+
+## 10. Production Best Practices
+
+### ApiClient Production dengan Dio
+
+```dart
+class ApiConfig {
+  static const String baseUrl = 'https://api.example.com/v1';
+  static const Duration timeout = Duration(seconds: 15);
+}
+
+class ApiClient {
+  late final Dio _dio;
+
+  ApiClient({String? baseUrl, String Function()? getToken, void Function()? on401}) {
+    _dio = Dio(BaseOptions(
+      baseUrl: baseUrl ?? ApiConfig.baseUrl,
+      connectTimeout: ApiConfig.timeout,
+      receiveTimeout: ApiConfig.timeout,
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    ));
+
+    _dio.interceptors.addAll([
+      _AuthInterceptor(getToken ?? () => ''),
+      _LogInterceptor(),
+    ]);
+    if (on401 != null) _dio.interceptors.add(_UnauthorizedInterceptor(on401));
+  }
+
+  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParams, CancelToken? ct}) =>
+      _dio.get<T>(path, queryParameters: queryParams, cancelToken: ct);
+  Future<Response<T>> post<T>(String path, {dynamic data}) =>
+      _dio.post<T>(path, data: data);
+}
+
+class _AuthInterceptor extends Interceptor {
+  final String Function() _getToken;
+  _AuthInterceptor(this._getToken);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final t = _getToken();
+    if (t.isNotEmpty) options.headers['Authorization'] = 'Bearer $t';
+    handler.next(options);
+  }
+}
+
+class _LogInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions o, RequestInterceptorHandler h) {
+    debugPrint('[${o.method}] ${o.uri}'); h.next(o);
+  }
+  @override
+  void onResponse(Response r, ResponseInterceptorHandler h) {
+    debugPrint('[${r.statusCode}] ${r.requestOptions.uri}'); h.next(r);
+  }
+  @override
+  void onError(DioException e, ErrorInterceptorHandler h) {
+    debugPrint('[ERROR ${e.response?.statusCode}] ${e.requestOptions.uri}'); h.next(e);
+  }
+}
+
+class _UnauthorizedInterceptor extends Interceptor {
+  final VoidCallback _on401;
+  _UnauthorizedInterceptor(this._on401);
+  @override
+  void onError(DioException e, ErrorInterceptorHandler h) {
+    if (e.response?.statusCode == 401) _on401();
+    h.next(e);
+  }
+}
+```
+
+### Tips Production
+
+1. **Base URL di satu file config** — pakai environment variable / flavor (dev/staging/prod)
+2. **Token jangan di memory** — simpan di `flutter_secure_storage`, baca via interceptor
+3. **Cancel request saat dispose** — cegah `setState()` setelah widget hilang
+4. **Timeout selalu diset** — mobile connection tidak stabil
+5. **Error message user-friendly** — jangan tampilkan `response.body` mentah
+6. **Retry logic** — untuk timeout/connection error, retry 2-3x exponential backoff
+
+## Common Mistakes
+
+1. Hanya handle `statusCode == 200` — API bisa return 201, 204, 304
+2. Tidak set timeout — request menggantung selamanya
+3. Hardcode base URL di banyak tempat
+4. Tidak bedakan error type (offline vs server vs parsing)
+5. Tidak cancel request — memory leak + UI crash
+
+## Package Reference
+
+| Package | Kegunaan |
+|---------|----------|
+| `http` | Request sederhana, <5 endpoints |
+| `dio` | Production, interceptor/upload/cancel |
+| `json_serializable` | Code gen, model >5 field |
+| `connectivity_plus` | Deteksi koneksi internet |
+
+## Apa Selanjutnya?
+
+- [Local Storage](/tutorials/flutter/intermediate/local-storage) — SharedPreferences, sqflite, Hive, offline cache
+- State Management — Riverpod / Bloc untuk scalable state
+- REST API Design — endpoint ramah mobile (pagination, caching headers)

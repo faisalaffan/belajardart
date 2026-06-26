@@ -1,0 +1,572 @@
+---
+title: Form & Validation
+description: Pelajari form handling di Flutter — Form, TextFormField, validator, autovalidateMode, custom validators, dan submit handler.
+---
+
+## Pengantar
+
+Form adalah komponen UI paling kritis di aplikasi bisnis — login, register, checkout, profil. Flutter menyediakan sistem form terstruktur: `Form` widget, `TextFormField` input, `FormState` untuk validasi kolektif.
+
+## 1. Form Widget — Basic Setup
+
+```dart
+import 'package:flutter/material.dart';
+
+class LoginForm extends StatefulWidget {
+  const LoginForm({super.key});
+  @override
+  State<LoginForm> createState() => _LoginFormState();
+}
+
+class _LoginFormState extends State<LoginForm> {
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          TextFormField(
+            decoration: const InputDecoration(labelText: 'Email'),
+          ),
+          TextFormField(
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('Valid!')));
+              }
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+`GlobalKey<FormState>` diperlukan untuk akses `validate()`, `save()`, `reset()`.
+
+## 2. TextFormField
+
+```dart
+TextFormField(
+  decoration: InputDecoration(
+    labelText: 'Full Name',
+    hintText: 'Enter your name',
+    prefixIcon: const Icon(Icons.person),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    filled: true,
+    fillColor: Colors.grey.shade50,
+  ),
+  validator: (value) {
+    if (value == null || value.trim().isEmpty) return 'Required';
+    return null;
+  },
+  onSaved: (value) => _name = value ?? '',
+  keyboardType: TextInputType.name,
+  textInputAction: TextInputAction.next,
+)
+```
+
+| Properti | Fungsi |
+|----------|--------|
+| `controller` | TextEditingController akses programatik |
+| `focusNode` | FocusNode navigasi keyboard |
+| `validator` | `String? Function(String?)` — null = valid |
+| `autovalidateMode` | Kapan validasi otomatis |
+| `obscureText` | Password field |
+
+## 3. Validator Signature
+
+`String? Function(String? value)` — return `null` = valid, non-null `String` = error.
+
+```dart
+validator: (value) {
+  if (value == null || value.trim().isEmpty) return 'Field tidak boleh kosong';
+  if (value.trim().length < 3) return 'Minimal 3 karakter';
+  return null;
+},
+```
+
+> **Penting**: Selalu `trim()` sebelum validasi. Spasi di awal/akhir tidak disadari user.
+
+## 4. autovalidateMode
+
+```dart
+AutovalidateMode.disabled          // manual (default)
+AutovalidateMode.always            // setiap rebuild
+AutovalidateMode.onUserInteraction // setelah user interaksi pertama
+```
+
+Rekomendasi — aktifkan hanya setelah submit gagal:
+
+```dart
+AutovalidateMode _autoValidate = AutovalidateMode.disabled;
+
+void _submit() {
+  if (_formKey.currentState!.validate()) {
+    // submit
+  } else {
+    setState(() => _autoValidate = AutovalidateMode.onUserInteraction);
+  }
+}
+```
+
+## 5. Form Operations
+
+```dart
+_formKey.currentState!.validate(); // trigger validator, return bool
+_formKey.currentState!.save();     // trigger onSaved semua field
+_formKey.currentState!.reset();    // reset ke initialValue
+```
+
+## 6. Custom Validators
+
+```dart
+class Validators {
+  static String? required(String? value, [String name = 'Field']) {
+    if (value == null || value.trim().isEmpty) return '$name wajib diisi';
+    return null;
+  }
+
+  static String? email(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final regex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!regex.hasMatch(value.trim())) return 'Email tidak valid';
+    return null;
+  }
+
+  static String? minLength(String? value, int min, [String name = 'Field']) {
+    if (value != null && value.trim().length < min) return '$name minimal $min karakter';
+    return null;
+  }
+
+  static String? Function(String?) match(String? other, String name) {
+    return (value) => value != other ? '$name tidak cocok' : null;
+  }
+}
+```
+
+Pemakaian:
+
+```dart
+TextFormField(validator: (v) => Validators.required(v, 'Nama'))
+TextFormField(validator: (v) => Validators.email(v))
+TextFormField(validator: (v) => Validators.minLength(v, 8, 'Password'))
+```
+
+## 7. Cross-Field — Konfirmasi Password
+
+```dart
+class RegisterForm extends StatefulWidget {
+  const RegisterForm({super.key});
+  @override
+  State<RegisterForm> createState() => _RegisterFormState();
+}
+
+class _RegisterFormState extends State<RegisterForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _passCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          TextFormField(
+            controller: _passCtrl,
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+            validator: (v) => Validators.minLength(v, 8, 'Password'),
+          ),
+          TextFormField(
+            controller: _confirmCtrl,
+            decoration: const InputDecoration(labelText: 'Confirm'),
+            obscureText: true,
+            validator: (v) =>
+                v != _passCtrl.text ? 'Password tidak cocok' : null,
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) _formKey.currentState!.save();
+            },
+            child: const Text('Register'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 8. Form Model Pattern
+
+```dart
+class RegisterFormData {
+  final String name, email, password, phone;
+  const RegisterFormData({
+    required this.name, required this.email,
+    required this.password, required this.phone,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name, 'email': email, 'password': password, 'phone': phone,
+  };
+}
+
+class RegisterViewModel extends ChangeNotifier {
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+  String? _error;
+  String? get error => _error;
+
+  Future<bool> submit(RegisterFormData data) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      await Future.delayed(const Duration(seconds: 2)); // simulasi API
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+}
+```
+
+## 9. FocusNode — Keyboard Navigation
+
+```dart
+class LoginForm extends StatefulWidget {
+  const LoginForm({super.key});
+  @override
+  State<LoginForm> createState() => _LoginFormState();
+}
+
+class _LoginFormState extends State<LoginForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailFocus = FocusNode();
+  final _passFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _emailFocus.dispose();
+    _passFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          TextFormField(
+            focusNode: _emailFocus,
+            decoration: const InputDecoration(labelText: 'Email'),
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) =>
+                FocusScope.of(context).requestFocus(_passFocus),
+          ),
+          TextFormField(
+            focusNode: _passFocus,
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) {
+              _passFocus.unfocus();
+              _submit();
+            },
+          ),
+          SubmitButton(
+            isLoading: false,
+            onPressed: _submit,
+            label: 'Login',
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    if (_formKey.currentState!.validate()) _formKey.currentState!.save();
+  }
+}
+
+class SubmitButton extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback? onPressed;
+  final String label;
+  const SubmitButton({
+    super.key, required this.isLoading,
+    required this.onPressed, required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onPressed,
+        child: isLoading
+            ? const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(label),
+      ),
+    );
+  }
+}
+```
+
+## 10. Non-Text Inputs
+
+```dart
+// Dropdown
+DropdownButtonFormField<String>(
+  decoration: const InputDecoration(labelText: 'Gender'),
+  items: const [
+    DropdownMenuItem(value: 'male', child: Text('Male')),
+    DropdownMenuItem(value: 'female', child: Text('Female')),
+  ],
+  onChanged: (v) => _gender = v,
+  validator: (v) => v == null ? 'Pilih gender' : null,
+)
+
+// Checkbox dengan FormField
+FormField<bool>(
+  builder: (state) => Column(children: [
+    CheckboxListTile(
+      title: const Text('I agree to terms'),
+      value: state.value ?? false,
+      onChanged: (v) => state.didChange(v),
+    ),
+    if (state.errorText != null)
+      Text(state.errorText!, style: const TextStyle(color: Colors.red)),
+  ]),
+  validator: (v) => v != true ? 'Harus setuju terms' : null,
+)
+```
+
+## 11. Form dalam Dialog
+
+```dart
+Future<Map<String, String>?> showNoteDialog(BuildContext context) async {
+  final formKey = GlobalKey<FormState>();
+  final titleCtrl = TextEditingController();
+  final contentCtrl = TextEditingController();
+
+  final result = await showDialog<Map<String, String>>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Quick Note'),
+      content: Form(
+        key: formKey,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(
+            controller: titleCtrl,
+            decoration: const InputDecoration(labelText: 'Title'),
+            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+          ),
+          TextFormField(
+            controller: contentCtrl,
+            decoration: const InputDecoration(labelText: 'Content'),
+            maxLines: 3,
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () {
+            if (formKey.currentState!.validate()) {
+              Navigator.pop(ctx, {
+                'title': titleCtrl.text,
+                'content': contentCtrl.text,
+              });
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+
+  titleCtrl.dispose();
+  contentCtrl.dispose();
+  return result;
+}
+```
+
+## 12. Production-Ready Register Form
+
+```dart
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _vm = RegisterViewModel();
+
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passFocus = FocusNode();
+  final _confirmFocus = FocusNode();
+
+  AutovalidateMode _autoValidate = AutovalidateMode.disabled;
+  bool _obscurePass = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm.addListener(() { if (mounted) setState(() {}); });
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _emailCtrl.dispose(); _passCtrl.dispose();
+    _confirmCtrl.dispose(); _phoneCtrl.dispose();
+    _nameFocus.dispose(); _emailFocus.dispose(); _passFocus.dispose();
+    _confirmFocus.dispose();
+    _vm.removeListener(() {});
+    _vm.dispose();
+    super.dispose();
+  }
+
+  void _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _autoValidate = AutovalidateMode.onUserInteraction);
+      return;
+    }
+    final data = RegisterFormData(
+      name: _nameCtrl.text.trim(), email: _emailCtrl.text.trim(),
+      password: _passCtrl.text, phone: _phoneCtrl.text.trim(),
+    );
+    if (await _vm.submit(data) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registered!'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  InputDecoration _dec(String label, {IconData? icon}) => InputDecoration(
+        labelText: label,
+        prefixIcon: icon != null ? Icon(icon) : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          autovalidateMode: _autoValidate,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(controller: _nameCtrl, focusNode: _nameFocus,
+                decoration: _dec('Name', icon: Icons.person),
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_emailFocus),
+                validator: (v) => Validators.required(v, 'Nama') ??
+                    Validators.minLength(v, 3, 'Nama')),
+              const SizedBox(height: 16),
+              TextFormField(controller: _emailCtrl, focusNode: _emailFocus,
+                decoration: _dec('Email', icon: Icons.email),
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_passFocus),
+                validator: (v) => Validators.required(v, 'Email') ?? Validators.email(v)),
+              const SizedBox(height: 16),
+              TextFormField(controller: _passCtrl, focusNode: _passFocus,
+                decoration: _dec('Password', icon: Icons.lock).copyWith(
+                  suffixIcon: IconButton(
+                    onPressed: () => setState(() => _obscurePass = !_obscurePass),
+                    icon: Icon(_obscurePass ? Icons.visibility_off : Icons.visibility),
+                  ),
+                ),
+                obscureText: _obscurePass,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_confirmFocus),
+                validator: (v) => Validators.required(v, 'Password') ??
+                    Validators.minLength(v, 8, 'Password')),
+              const SizedBox(height: 16),
+              TextFormField(controller: _confirmCtrl, focusNode: _confirmFocus,
+                decoration: _dec('Confirm Password'),
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submit(),
+                validator: (v) => v != _passCtrl.text ? 'Password tidak cocok' : null),
+              const SizedBox(height: 16),
+              TextFormField(controller: _phoneCtrl,
+                decoration: _dec('Phone', icon: Icons.phone),
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submit(),
+                validator: (v) {
+                  final r = RegExp(r'^\+?[0-9]{10,15}$');
+                  if (v != null && v.isNotEmpty && !r.hasMatch(v.trim())) return 'No HP tidak valid';
+                  return null;
+                }),
+              if (_vm.error != null)
+                Padding(padding: const EdgeInsets.only(top: 8),
+                  child: Text(_vm.error!, style: TextStyle(
+                    color: Theme.of(context).colorScheme.error))),
+              const SizedBox(height: 24),
+              SubmitButton(isLoading: _vm.isLoading, onPressed: _submit, label: 'Register'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+## Common Mistakes
+
+1. **Tidak dispose controller/focusNode** — Memory leak. Semua harus di `dispose()`.
+2. **Validasi hanya di client** — Client validation untuk UX. Server-side tetap wajib.
+3. **Form tanpa scroll** — Bungkus dengan `SingleChildScrollView`. Scaffold `resizeToAvoidBottomInset: true`.
+4. **Loading state tidak di-handle** — Disable button saat submitting agar tidak double submit.
+5. **Error message teknis** — "Email sudah terdaftar", bukan "HTTP 409 Conflict".
+6. **Tidak trim input** — Selalu `trim()` sebelum validasi dan submit.
+
+## Apa Selanjutnya?
+
+- [Animations](/tutorials/flutter/intermediate/animations) — Implicit/Explicit, Hero, AnimationController, Staggered
+- State Management — Riverpod / Bloc untuk form state kompleks
+- Networking — Kirim form data ke server dengan http/dio

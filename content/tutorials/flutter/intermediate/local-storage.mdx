@@ -1,0 +1,495 @@
+---
+title: Local Storage
+description: Pelajari penyimpanan data lokal di Flutter — SharedPreferences, File I/O, sqflite, Hive — dan kapan menggunakan masing-masing.
+---
+
+## Pengantar
+
+Aplikasi mobile jarang bekerja sepenuhnya online. Data harus tetap tersedia offline — preferences, draft, cache, data master. Flutter menyediakan beberapa opsi:
+
+| Approach | Use Case | Kompleksitas |
+|----------|----------|-------------|
+| SharedPreferences | Key-value kecil, settings | Sangat rendah |
+| File I/O | JSON cache, binary file | Rendah |
+| sqflite | Data relasional, query complex | Sedang |
+| Hive | Object storage, NoSQL | Rendah |
+| flutter_secure_storage | Token, password | Rendah |
+
+## 1. SharedPreferences
+
+Cocok untuk preferences, flag, data kecil (<100KB).
+
+```yaml
+dependencies:
+  shared_preferences: ^2.3.0
+```
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class PreferencesService {
+  late SharedPreferences _prefs;
+
+  Future<void> init() async {
+    _prefs = await SharedPreferences.getInstance();
+  }
+
+  // String
+  Future<bool> setString(String key, String value) =>
+      _prefs.setString(key, value);
+  String? getString(String key) => _prefs.getString(key);
+
+  // Int / Bool / Double / StringList — API seragam
+  Future<bool> setInt(String key, int value) => _prefs.setInt(key, value);
+  int? getInt(String key) => _prefs.getInt(key);
+
+  Future<bool> setBool(String key, bool value) => _prefs.setBool(key, value);
+  bool? getBool(String key) => _prefs.getBool(key);
+
+  Future<bool> remove(String key) => _prefs.remove(key);
+  Future<bool> clear() => _prefs.clear();
+  bool containsKey(String key) => _prefs.containsKey(key);
+}
+```
+
+### Contoh — User Preferences
+
+```dart
+class UserPreferences {
+  final SharedPreferences _prefs;
+
+  UserPreferences(this._prefs);
+
+  ThemeMode getThemeMode() {
+    final v = _prefs.getString('theme_mode');
+    switch (v) {
+      case 'light': return ThemeMode.light;
+      case 'dark': return ThemeMode.dark;
+      default: return ThemeMode.system;
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) =>
+      _prefs.setString('theme_mode', mode.name);
+
+  bool getNotifications() => _prefs.getBool('notifications') ?? true;
+
+  String getLanguage() => _prefs.getString('language') ?? 'id';
+
+  List<String> getRecentSearches() =>
+      _prefs.getStringList('recent_searches') ?? [];
+
+  Future<void> addRecentSearch(String query) async {
+    final searches = getRecentSearches();
+    searches.remove(query);
+    searches.insert(0, query);
+    if (searches.length > 10) searches.removeLast();
+    await _prefs.setStringList('recent_searches', searches);
+  }
+}
+```
+
+> **Tidak cocok untuk**: Data >100KB, nested object, relational query.
+
+## 2. path_provider — Directory yang Tepat
+
+```yaml
+dependencies:
+  path_provider: ^2.1.0
+```
+
+```dart
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
+class DirectoryHelper {
+  static Future<Directory> get documents =>
+      getApplicationDocumentsDirectory(); // persistent, backup
+  static Future<Directory> get temporary =>
+      getTemporaryDirectory(); // bisa dihapus OS
+  static Future<Directory> get cache =>
+      getApplicationCacheDirectory(); // aman dihapus
+}
+```
+
+## 3. File I/O — Baca/Tulis JSON
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+class CacheService {
+  static const _fileName = 'cache.json';
+  static const _maxAge = Duration(hours: 24);
+
+  Future<File> get _file async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_fileName');
+  }
+
+  Future<void> write(Map<String, dynamic> data) async {
+    final file = await _file;
+    await file.writeAsString(jsonEncode(data));
+  }
+
+  Future<Map<String, dynamic>?> read() async {
+    try {
+      final file = await _file;
+      if (!await file.exists()) return null;
+      final stat = await file.stat();
+      if (DateTime.now().difference(stat.modified) > _maxAge) {
+        await file.delete();
+        return null; // expired
+      }
+      return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> clear() async {
+    final file = await _file;
+    if (await file.exists()) await file.delete();
+  }
+}
+```
+
+## 4. sqflite — Database Relasional
+
+```yaml
+dependencies:
+  sqflite: ^2.3.0
+  path: ^1.9.0
+```
+
+```dart
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+class AppDatabase {
+  static final AppDatabase instance = AppDatabase._internal();
+  AppDatabase._internal();
+  static Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final path = join(await getDatabasesPath(), 'app.db');
+    return openDatabase(path, version: 1, onCreate: _onCreate, onUpgrade: _onUpgrade);
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_archived INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX idx_notes_archived ON notes(is_archived)');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE notes ADD COLUMN priority INTEGER DEFAULT 0');
+    }
+  }
+}
+```
+
+### CRUD
+
+```dart
+class NoteRepository {
+  final Database db;
+
+  NoteRepository(this.db);
+
+  Future<int> insert(Note note) => db.insert('notes', note.toMap());
+
+  Future<List<Note>> getAll({bool? archived}) async {
+    final where = <String>[];
+    final args = <dynamic>[];
+    if (archived != null) {
+      where.add('is_archived = ?');
+      args.add(archived ? 1 : 0);
+    }
+    final maps = await db.query('notes',
+        where: where.join(' AND '),
+        whereArgs: args,
+        orderBy: 'created_at DESC');
+    return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
+  Future<Note?> getById(int id) async {
+    final maps = await db.query('notes', where: 'id = ?', whereArgs: [id]);
+    return maps.isEmpty ? null : Note.fromMap(maps.first);
+  }
+
+  Future<int> update(Note note) =>
+      db.update('notes', note.toMap(), where: 'id = ?', whereArgs: [note.id]);
+
+  Future<int> delete(int id) =>
+      db.delete('notes', where: 'id = ?', whereArgs: [id]);
+
+  /// Transaction batch
+  Future<void> insertBatch(List<Note> notes) => db.transaction((txn) async {
+        for (final n in notes) {
+          await txn.insert('notes', n.toMap());
+        }
+      });
+}
+```
+
+### Model sqflite
+
+```dart
+class Note {
+  final int? id;
+  final String title;
+  final String content;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  Note({
+    this.id,
+    required this.title,
+    required this.content,
+    this.isArchived = false,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
+
+  Map<String, dynamic> toMap() => {
+        if (id != null) 'id': id,
+        'title': title,
+        'content': content,
+        'is_archived': isArchived ? 1 : 0,
+        'created_at': createdAt.toIso8601String(),
+        'updated_at': updatedAt.toIso8601String(),
+      };
+
+  factory Note.fromMap(Map<String, dynamic> map) => Note(
+        id: map['id'] as int?,
+        title: map['title'] as String,
+        content: map['content'] as String,
+        isArchived: (map['is_archived'] as int) == 1,
+        createdAt: DateTime.parse(map['created_at'] as String),
+        updatedAt: DateTime.parse(map['updated_at'] as String),
+      );
+}
+```
+
+### Raw Query untuk Join / Aggregate
+
+```dart
+Future<List<Map<String, dynamic>>> getNotesWithCategory() async {
+  return db.rawQuery('''
+    SELECT n.*, c.name as category_name
+    FROM notes n LEFT JOIN categories c ON n.category_id = c.id
+    ORDER BY n.updated_at DESC
+  ''');
+}
+```
+
+## 5. Hive — NoSQL Object Storage
+
+Database binary yang sangat cepat. Cocok untuk cache dan object storage.
+
+```yaml
+dependencies:
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+dev_dependencies:
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.0
+```
+
+```dart
+import 'package:hive_flutter/hive_flutter.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(UserAdapter());
+  await Hive.openBox<User>('users');
+  await Hive.openBox('settings');
+  runApp(const MyApp());
+}
+```
+
+### Operasi Dasar
+
+```dart
+class SettingsBox {
+  final box = Hive.box('settings');
+
+  void save(String key, dynamic value) => box.put(key, value);
+  dynamic read(String key) => box.get(key);
+  void delete(String key) => box.delete(key);
+  bool contains(String key) => box.containsKey(key);
+}
+```
+
+### Type Adapter dengan Code Gen
+
+```dart
+import 'package:hive/hive.dart';
+
+part 'user.g.dart';
+
+@HiveType(typeId: 0)
+class User extends HiveObject {
+  @HiveField(0)
+  final String id;
+  @HiveField(1)
+  final String name;
+  @HiveField(2)
+  final String email;
+  @HiveField(3)
+  final int age;
+
+  User({required this.id, required this.name, required this.email, this.age = 0});
+}
+```
+
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
+
+### ValueListenableBuilder — Reactive
+
+```dart
+ValueListenableBuilder(
+  valueListenable: Hive.box<User>('users').listenable(),
+  builder: (context, Box<User> box, _) {
+    return ListView.builder(
+      itemCount: box.length,
+      itemBuilder: (context, index) {
+        final user = box.getAt(index)!;
+        return ListTile(title: Text(user.name), subtitle: Text(user.email));
+      },
+    );
+  },
+)
+```
+
+## 6. Decision Matrix
+
+| Approach | Cocok | Tidak Cocok |
+|----------|-------|-------------|
+| SharedPreferences | Theme, onboarding flag, language | Data kompleks, >100KB |
+| File I/O JSON | Cache API, export, draft besar | Frequent writes, query by field |
+| sqflite | Data relasional, >1000 records, complex query | Simple key-value (overkill) |
+| Hive | Object storage, cache, fast read/write | Relasi, join query |
+| flutter_secure_storage | Token, API key, password | Data non-sensitif |
+
+## 7. flutter_secure_storage — Data Sensitif
+
+```yaml
+dependencies:
+  flutter_secure_storage: ^9.2.0
+```
+
+```dart
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+class SecureStorageService {
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
+    await Future.wait([
+      _storage.write(key: 'access_token', value: accessToken),
+      _storage.write(key: 'refresh_token', value: refreshToken),
+    ]);
+  }
+
+  Future<String?> get accessToken => _storage.read(key: 'access_token');
+  Future<bool> get isLoggedIn async =>
+      (await accessToken)?.isNotEmpty ?? false;
+
+  Future<void> clearTokens() async {
+    await Future.wait([
+      _storage.delete(key: 'access_token'),
+      _storage.delete(key: 'refresh_token'),
+    ]);
+  }
+}
+```
+
+Min SDK di `android/app/build.gradle`:
+
+```groovy
+defaultConfig {
+    minSdkVersion 18
+}
+```
+
+## 8. Multi-Layer Storage Pattern
+
+```dart
+class StorageManager {
+  final SecureStorageService _secure;
+  final PreferencesService _prefs;
+  final NoteRepository _noteRepo;
+  final CacheService _cache;
+
+  StorageManager({
+    required SecureStorageService secure,
+    required PreferencesService prefs,
+    required NoteRepository noteRepo,
+    required CacheService cache,
+  })  : _secure = secure,
+        _prefs = prefs,
+        _noteRepo = noteRepo,
+        _cache = cache;
+
+  // Auth — secure storage
+  Future<void> login({required String token}) async {
+    await _secure.saveTokens(accessToken: token, refreshToken: '');
+    await _prefs.setString('last_login', DateTime.now().toIso8601String());
+  }
+
+  // Notes — SQLite
+  Future<List<Note>> getNotes() => _noteRepo.getAll();
+  Future<void> addNote(Note note) => _noteRepo.insert(note);
+
+  // Cache — file JSON
+  Future<void> cacheFeed(Map<String, dynamic> feed) => _cache.write(feed);
+
+  // Preferences — SharedPreferences
+  Future<void> setDarkMode(bool v) => _prefs.setBool('dark_mode', v);
+}
+```
+
+## Common Mistakes
+
+1. **Lupa close database/box** — sqflite dan Hive pakai resource. Panggil `box.close()` / `db.close()` saat diperlukan.
+2. **I/O di UI thread** — Semua file/database operation bersifat blocking. Jangan lakukan di build method.
+3. **No migration strategy** — sqflite tanpa `onUpgrade` crash saat struktur table berubah.
+4. **Token di SharedPreferences** — plain text! Selalu pakai `flutter_secure_storage`.
+5. **Cache tanpa expiry** — data basi tampil. Selalu simpan timestamp, cek sebelum pakai.
+6. **Menyimpan objek besar di Hive tanpa adapter** — performa turun. Buat TypeAdapter.
+
+## Apa Selanjutnya?
+
+- [Form & Validation](/tutorials/flutter/intermediate/forms-validation) — TextFormField, validator, submit handler
+- Networking + Local Storage — Offline-first dengan repository pattern
+- State Management — Riverpod / Bloc untuk integrasi storage + networking
