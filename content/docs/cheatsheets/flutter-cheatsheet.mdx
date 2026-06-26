@@ -1,0 +1,178 @@
+---
+title: Flutter Cheatsheet
+description: Quick reference widget dan pattern Flutter — Scaffold, layout, input, scrolling, state, navigation dalam format tabel padat.
+---
+
+# Flutter Cheatsheet
+
+Quick reference untuk developer Flutter. Widget paling umum + pattern dalam format singkat.
+
+## App Structure
+
+| Konsep | Sintaks |
+|--------|---------|
+| Entry point | `void main() => runApp(const MyApp());` |
+| MaterialApp | `MaterialApp(home: HomePage(), theme: ThemeData(...))` |
+| Scaffold | `Scaffold(appBar: AppBar(...), body: ..., floatingActionButton: ...)` |
+| AppBar | `AppBar(title: const Text('Title'), actions: [...])` |
+| Page route | `Navigator.push(context, MaterialPageRoute(builder: (_) => Page()));` |
+| Named route | `Navigator.pushNamed(context, '/detail', arguments: data);` |
+
+## Layout Widgets
+
+| Widget | Sintaks Minimal |
+|--------|-----------------|
+| Container | `Container(width: 100, height: 100, color: Colors.blue, padding: EdgeInsets.all(8))` |
+| Row | `Row(children: [child1, child2])` |
+| Column | `Column(children: [child1, child2])` |
+| Stack | `Stack(children: [...])` |
+| SizedBox | `const SizedBox(height: 16)` atau `SizedBox(width: 100, height: 100)` |
+| Expanded | `Expanded(flex: 2, child: child)` — isi ruang tersisa di Row/Column |
+| Flexible | `Flexible(flex: 1, child: child)` — seperti Expanded tapi tidak strict |
+| Padding | `Padding(padding: const EdgeInsets.all(16), child: child)` |
+| Center | `Center(child: child)` |
+| Align | `Align(alignment: Alignment.topRight, child: child)` |
+| Wrap | `Wrap(spacing: 8, children: [...])` — baris yang auto-wrap |
+| SafeArea | `SafeArea(child: child)` — hindari notch/status bar |
+
+## Text & Display
+
+| Widget | Sintaks Minimal |
+|--------|-----------------|
+| Text | `Text('Hello', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))` |
+| RichText | `RichText(text: TextSpan(text: 'Bold', style: ..., children: [TextSpan(text: ' normal')]))` |
+| Icon | `Icon(Icons.star, color: Colors.amber)` |
+| Image (asset) | `Image.asset('assets/logo.png')` — deklarasi di pubspec.yaml |
+| Image (network) | `Image.network('https://...')` |
+| CircleAvatar | `CircleAvatar(radius: 30, backgroundImage: NetworkImage('...'))` |
+| Chip | `Chip(label: Text('Tag'), onDeleted: () {})` |
+| Divider | `const Divider(height: 1)` |
+
+## Buttons
+
+| Widget | Sintaks Minimal |
+|--------|-----------------|
+| ElevatedButton | `ElevatedButton(onPressed: () {}, child: const Text('Click'))` |
+| TextButton | `TextButton(onPressed: () {}, child: const Text('Cancel'))` |
+| OutlinedButton | `OutlinedButton(onPressed: () {}, child: const Text('Outline'))` |
+| IconButton | `IconButton(icon: const Icon(Icons.add), onPressed: () {})` |
+| FloatingActionButton | `FloatingActionButton(onPressed: () {}, child: const Icon(Icons.add))` |
+| Button disabled | `ElevatedButton(onPressed: null, child: const Text('Disabled'))` |
+
+## Input
+
+| Widget | Sintaks Minimal |
+|--------|-----------------|
+| TextField | `TextField(controller: ctrl, decoration: InputDecoration(hintText: '...'))` |
+| TextFormField | `TextFormField(validator: (v) => v?.isEmpty == true ? 'Required' : null)` |
+| Form | `Form(key: _formKey, child: Column(...))` — validasi: `_formKey.currentState!.validate()` |
+| Checkbox | `Checkbox(value: isChecked, onChanged: (v) => setState(() => isChecked = v!))` |
+| Switch | `Switch(value: isOn, onChanged: (v) => setState(() => isOn = v))` |
+| Slider | `Slider(value: val, min: 0, max: 100, onChanged: (v) => setState(() => val = v))` |
+| DropdownButton | `DropdownButton<String>(value: selected, items: [...], onChanged: (v) {})` |
+
+## Scrolling & Lists
+
+| Widget | Sintaks Minimal |
+|--------|-----------------|
+| SingleChildScrollView | `SingleChildScrollView(child: Column(...))` |
+| ListView | `ListView(children: [...])` — untuk list pendek |
+| ListView.builder | `ListView.builder(itemCount: n, itemBuilder: (ctx, i) => ListTile(...))` |
+| ListView.separated | `ListView.separated(itemCount: n, separatorBuilder: (_, __) => Divider(), itemBuilder: ...)` |
+| GridView | `GridView.count(crossAxisCount: 2, children: [...])` |
+| GridView.builder | `GridView.builder(gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(...), itemBuilder: ...)` |
+| RefreshIndicator | `RefreshIndicator(onRefresh: () async { ... }, child: listView)` |
+
+## State Patterns
+
+| Pattern | Kode Inti |
+|---------|-----------|
+| setState (local) | `setState(() { _count++; });` di StatefulWidget |
+| Lifting state | Parent pegang state, kirim callback ke child sebagai prop |
+| InheritedWidget | `context.dependOnInheritedWidgetOfExactType<MyInherited>();` |
+| Provider read | `context.read<Counter>().increment();` |
+| Provider watch | `context.watch<Counter>().value;` |
+| Riverpod ref.read | `ref.read(counterProvider.notifier).increment();` |
+| Riverpod ref.watch | `ref.watch(counterProvider);` |
+| BLoC emit | `emit(CounterState(count + 1));` |
+| ValueNotifier | `ValueNotifier<int>(0)` + `ValueListenableBuilder(...)` |
+
+## Navigation
+
+| Konsep | Sintaks |
+|--------|---------|
+| Push | `Navigator.push(context, MaterialPageRoute(builder: (_) => Page()));` |
+| Pop | `Navigator.pop(context);` atau `Navigator.pop(context, result);` |
+| Push named | `Navigator.pushNamed(context, '/detail');` |
+| Push replacement | `Navigator.pushReplacement(context, route);` — ganti current di stack |
+| Pop until | `Navigator.popUntil(context, (route) => route.isFirst);` |
+| Routes map | `MaterialApp(routes: {'/': (_) => HomePage(), '/detail': (_) => DetailPage()})` |
+| onGenerateRoute | `MaterialApp(onGenerateRoute: (settings) { ... })` — dynamic routing |
+| Get result | `final result = await Navigator.push(context, route);` |
+
+## Common Snippets
+
+```dart
+// SnackBar
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(content: Text('Saved!'), action: SnackBarAction(label: 'Undo', onPressed: () {}))
+);
+
+// AlertDialog
+showDialog(context: context, builder: (ctx) => AlertDialog(
+  title: Text('Confirm'), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text('OK'))]
+));
+
+// BottomSheet
+showModalBottomSheet(context: context, builder: (ctx) => Container(height: 200));
+
+// TextEditingController
+final ctrl = TextEditingController();
+ctrl.text; // get value
+ctrl.dispose(); // jangan lupa di dispose()
+
+// FocusNode
+final focus = FocusNode();
+focus.requestFocus();
+focus.dispose();
+
+// MediaQuery
+final width = MediaQuery.of(context).size.width;
+final height = MediaQuery.of(context).size.height;
+
+// Theme
+final color = Theme.of(context).primaryColor;
+final textTheme = Theme.of(context).textTheme;
+
+// FutureBuilder
+FutureBuilder(future: fetch(), builder: (ctx, snapshot) {
+  if (snapshot.hasData) return Text('${snapshot.data}');
+  if (snapshot.hasError) return Text('Error');
+  return CircularProgressIndicator();
+});
+
+// StreamBuilder
+StreamBuilder(stream: stream, builder: (ctx, snapshot) {
+  if (snapshot.hasData) return Text('${snapshot.data}');
+  return CircularProgressIndicator();
+});
+```
+
+## Tips Cepat
+
+```dart
+// Hot reload: simpan file (Ctrl+S) — state tetap
+// Hot restart: tekan 'R' di terminal — state reset
+// Full restart: Ctrl+C lalu flutter run lagi
+
+// Debug print
+debugPrint('message'); // tidak dipotong seperti print()
+
+// Performance overlay
+MaterialApp(showPerformanceOverlay: true, ...)
+
+// Lint hints (tambahkan di analysis_options.yaml)
+// prefer_const_constructors
+// prefer_const_literals_to_create_immutables
+// avoid_print
+```
