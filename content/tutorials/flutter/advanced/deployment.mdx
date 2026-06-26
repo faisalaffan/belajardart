@@ -40,7 +40,7 @@ keytool -genkey -v \
 
 ### 2. Konfigurasi key.properties
 
-```properties
+```bash
 # android/key.properties — JANGAN di-commit ke git!
 storePassword=your_keystore_password
 keyPassword=your_key_password
@@ -50,7 +50,7 @@ storeFile=/Users/you/path/to/upload-keystore.jks
 
 **Security:** File ini berisi credential. Tambahkan ke `.gitignore`:
 
-```gitignore
+```bash
 # .gitignore
 android/key.properties
 *.jks
@@ -61,7 +61,7 @@ Untuk CI/CD, gunakan environment variables atau secret store (GitHub Secrets, Co
 
 ### 3. Signing Config di build.gradle
 
-```gradle
+```groovy
 // android/app/build.gradle
 def keystoreProperties = new Properties()
 
@@ -161,7 +161,7 @@ Google Play mementukan AAB mulai Agustus 2023 untuk aplikasi baru. AAB memungkin
 
 ### 6. Android App Icon (Adaptive Icon)
 
-```xml
+```html
 <!-- android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
@@ -179,7 +179,7 @@ Google Play mementukan AAB mulai Agustus 2023 untuk aplikasi baru. AAB memungkin
 </adaptive-icon>
 ```
 
-```xml
+```html
 <!-- android/app/src/main/res/values/ic_launcher_background.xml -->
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -505,7 +505,7 @@ class FlavorConfig {
 
 ### Android Flavor Config
 
-```gradle
+```groovy
 // android/app/build.gradle
 android {
     // ... konfigurasi default
