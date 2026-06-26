@@ -1,0 +1,142 @@
+---
+title: Dart Cheatsheet
+description: Quick reference sintaks Dart — types, variables, null safety, functions, classes, collections, async, dan streams dalam format tabel padat.
+---
+
+# Dart Cheatsheet
+
+Quick reference untuk developer yang sudah familiar dengan Dart. Format tabel + snippet pendek — scan dalam satu layar.
+
+## Types & Variables
+
+| Konsep | Sintaks |
+|--------|---------|
+| `var` (type inference) | `var name = 'Budi';` — tipe terkunci setelah assignment pertama |
+| `final` | `final x = DateTime.now();` — immutable, nilai runtime |
+| `const` | `const pi = 3.14;` — compile-time constant |
+| `late` | `late String data;` — diinisialisasi nanti, wajib diisi sebelum dipakai |
+| `dynamic` | `dynamic x = 1; x = 'hello';` — bisa ganti tipe (hindari kalau bisa) |
+| `int` | `int count = 42;` |
+| `double` | `double price = 9.99;` |
+| `String` | `String name = 'John';` — single atau double quote |
+| `bool` | `bool isValid = true;` |
+| String interpolation | `'Halo $name, umur ${age + 1}'` |
+| Multi-line string | `'''line1\nline2'''` |
+| Type conversion | `int.parse('42')`, `42.toString()`, `double.parse('3.14')` |
+
+## Null Safety
+
+| Konsep | Sintaks |
+|--------|---------|
+| Nullable type | `String? name;` — bisa null |
+| Non-nullable (default) | `String name = '';` — tidak bisa null |
+| Null-aware access | `name?.length` — return null jika name null |
+| Null assertion | `name!.length` — throw jika null (pakai hati-hati) |
+| Null-coalescing | `name ?? 'default'` — fallback jika null |
+| Null-coalescing assignment | `name ??= 'default'` — assign jika null |
+| `late` | `late final String name;` — diisi nanti, throw jika belum diisi saat diakses |
+
+## Functions
+
+| Konsep | Sintaks |
+|--------|---------|
+| Basic | `int add(int a, int b) => a + b;` |
+| Arrow syntax | `String greet(String n) => 'Hello $n';` |
+| Optional positional | `void log(String msg, [String? prefix])` |
+| Named parameters | `void show({required String title, String? subtitle})` |
+| Default value | `void show({String title = 'Untitled'})` |
+| Anonymous/lambda | `(x) => x * 2` atau `(x) { return x * 2; }` |
+| Callback typedef | `typedef Callback = void Function(String data);` |
+| Async function | `Future<void> fetch() async { ... }` |
+| Generator sync | `Iterable<int> count(int n) sync* { yield n; }` |
+| Generator async | `Stream<int> ticks() async* { yield n; }` |
+
+## Classes
+
+| Konsep | Sintaks |
+|--------|---------|
+| Basic class | `class Point { double x; double y; Point(this.x, this.y); }` |
+| Named constructor | `Point.origin() : x = 0, y = 0;` |
+| Initializer list | `Point.fromJson(Map m) : x = m['x'], y = m['y'];` |
+| Factory | `factory Point.from(Map m) => Point(m['x'], m['y']);` |
+| Getters & setters | `double get area => w * h;` / `set value(double v) { ... }` |
+| Inheritance | `class Dog extends Animal { Dog(super.name); }` |
+| Mixin | `mixin Logger { void log(String m) { print(m); }}` — `class A with Logger` |
+| Interface (implicit) | `class A implements B` — implement semua anggota B |
+| Abstract | `abstract class Shape { double area(); }` |
+| `this.` in param | `class Point(this.x, this.y);` |
+| Cascade notation | `obj..x = 1..y = 2..draw();` |
+| Override | `@override double area() => 0;` |
+
+## Collections
+
+| Konsep | Sintaks |
+|--------|---------|
+| List literal | `var nums = [1, 2, 3];` |
+| List typed | `List<int> nums = [1, 2, 3];` |
+| Set | `var tags = {'dart', 'flutter'};` — unique, unordered |
+| Map | `var map = {'key': 'value', 'x': 1};` |
+| Spread | `[...nums, 4, 5]` |
+| Collection if | `[for (var n in nums) n * 2]` atau `[if (active) 'active']` |
+| map | `nums.map((e) => e * 2).toList();` |
+| where | `nums.where((e) => e > 2).toList();` |
+| reduce | `nums.reduce((a, b) => a + b);` |
+| fold | `nums.fold(0, (prev, e) => prev + e);` |
+| any / every | `nums.any((e) => e > 2);` / `nums.every((e) => e > 0);` |
+| firstWhere | `nums.firstWhere((e) => e > 2, orElse: () => -1);` |
+| sort | `nums.sort((a, b) => a.compareTo(b));` |
+| forEach | `nums.forEach((e) => print(e));` |
+
+## Control Flow
+
+| Konsep | Sintaks |
+|--------|---------|
+| if/else | `if (x > 0) { ... } else if { ... } else { ... }` |
+| switch | `switch (x) { case 1: ...; default: ...; }` |
+| for loop | `for (var i = 0; i < 10; i++) { ... }` |
+| for-in | `for (var item in items) { ... }` |
+| while | `while (condition) { ... }` |
+| do-while | `do { ... } while (condition);` |
+| Ternary | `x > 0 ? 'positive' : 'negative'` |
+| Exception: try/catch | `try { ... } on FormatException catch (e) { ... } finally { ... }` |
+| Rethrow | `catch (e) { rethrow; }` |
+
+## Async
+
+| Konsep | Sintaks |
+|--------|---------|
+| Future | `Future<String> fetch() async { return await http.get(url); }` |
+| then/catchError | `fetch().then((v) => ...).catchError((e) => ...);` |
+| Future.wait | `await Future.wait([fetch1(), fetch2()]);` |
+| Stream | `Stream<int> ticks() async* { while (true) { await sleep(1s); yield n++; }}` |
+| Stream listen | `stream.listen((data) { ... });` |
+| StreamController | `final ctrl = StreamController<int>(); ctrl.add(1); ctrl.stream.listen(...);` |
+| Stream transform | `stream.map((e) => e * 2).where((e) => e > 5)` |
+| await for | `await for (final value in stream) { print(value); }` |
+
+## Extensions & More
+
+| Konsep | Sintaks |
+|--------|---------|
+| Extension | `extension StringX on String { String get reversed => split('').reversed.join(); }` |
+| Enum | `enum Color { red, green, blue }` |
+| Enhanced enum | `enum Color { red(0xff0000); final int hex; const Color(this.hex); }` |
+| Record | `(int, String) pair = (1, 'one');` — akses: `pair.$1`, `pair.$2` |
+| Pattern matching | `switch (pair) { case (1, var s): print(s); }` |
+| Sealed class | `sealed class Result {} class Success extends Result {} class Error extends Result {}` |
+
+## Tips Cepat
+
+```dart
+// Cek tipe runtime
+print(value.runtimeType);
+
+// Cek tipe di if
+if (value is String) { ... }
+
+// Conditional import
+import 'file.dart' if (dart.library.io) 'io_impl.dart';
+
+// Lazy init
+late final _cache = _buildCache();
+```
