@@ -1,0 +1,559 @@
+---
+title: Streams
+description: Pelajari Streams di Dart — StreamController, async*, yield, stream transformation, StreamSubscription, dan StreamBuilder untuk data yang mengalir sepanjang waktu.
+---
+
+## Apa itu Stream?
+
+Bayangkan Anda menyalakan keran air. Air tidak keluar sekaligus, tapi mengalir setetes demi setetes, terus menerus, sampai Anda mematikan kerannya. **Stream** di Dart persis seperti itu — sebuah aliran data yang datang secara berurutan, tidak sekaligus.
+
+Perbedaan utama **Stream** vs **Future**:
+
+- **Future**: Mengembalikan **satu nilai** di masa depan. Seperti memesan paket — Anda tunggu, lalu dapat satu paket, selesai.
+- **Stream**: Mengembalikan **banyak nilai** dari waktu ke waktu. Seperti menonton YouTube — data terus mengalir sampai Anda berhenti.
+
+```dart
+Future<String> getFutureData() async {
+  await Future.delayed(Duration(seconds: 1));
+  return 'Satu data';
+}
+
+Stream<int> getStreamData() async* {
+  for (var i = 1; i <= 5; i++) {
+    await Future.delayed(Duration(seconds: 1));
+    yield i;
+  }
+}
+
+void main() async {
+  print('Future: ${await getFutureData()}');
+
+  print('Stream:');
+  await for (var nilai in getStreamData()) {
+    print('Terima: $nilai');
+  }
+}
+```
+
+## Single Subscription vs Broadcast Stream
+
+Dart punya dua jenis stream yang sangat berbeda perilakunya.
+
+```dart
+void main() {
+  // SINGLE SUBSCRIPTION — hanya bisa di-listen satu kali
+  var single = Stream<int>.fromIterable([1, 2, 3]);
+  single.listen((v) => print('Listener 1: $v'));
+  // single.listen(...); // ERROR: Bad state — sudah di-listen
+
+  // BROADCAST — bisa banyak listener, semua dapat data yang sama
+  var broadcast = Stream<int>.fromIterable([1, 2, 3]).asBroadcastStream();
+  broadcast.listen((v) => print('A: $v'));
+  broadcast.listen((v) => print('B: $v'));
+  // Output: A: 1, B: 1, A: 2, B: 2, A: 3, B: 3
+}
+```
+
+| Jenis | Listener | Cocok untuk |
+|-------|----------|-------------|
+| Single Subscription | Hanya 1 | File I/O, HTTP response |
+| Broadcast | Banyak | Click events, WebSocket, real-time data |
+
+## StreamController
+
+`StreamController` adalah cara manual untuk membuat stream. Anda mengontrol kapan data masuk (`sink`) dan keluar (`stream`).
+
+```dart
+import 'dart:async';
+
+void main() {
+  final controller = StreamController<String>.broadcast();
+
+  final sub1 = controller.stream.listen(
+    (data) => print('Sub1: $data'),
+    onError: (err) => print('Sub1 error: $err'),
+    onDone: () => print('Sub1 selesai'),
+  );
+
+  final sub2 = controller.stream.listen(
+    (data) => print('Sub2: $data'),
+    onError: (err) => print('Sub2 error: $err'),
+    onDone: () => print('Sub2 selesai'),
+  );
+
+  controller.sink.add('Halo');
+  controller.sink.add('Dunia');
+  controller.sink.addError(Exception('Error!'));
+  controller.close();
+
+  // Output:
+  // Sub1: Halo, Sub2: Halo, Sub1: Dunia, Sub2: Dunia
+  // Sub1 error, Sub2 error, lalu onDone
+}
+```
+
+**Lifecycle**: Create → `add()` → `addError()` → `close()`. Jangan lupa close controller untuk release resources.
+
+## async* Generator
+
+`async*` adalah cara paling idiomatis membuat stream. Gunakan `yield` untuk mengeluarkan nilai satu per satu.
+
+```dart
+import 'dart:async';
+
+Stream<int> count(int max) async* {
+  for (var i = 1; i <= max; i++) {
+    await Future.delayed(Duration(milliseconds: 500));
+    yield i;
+  }
+}
+
+Stream<int> fibonacci(int count) async* {
+  var a = 0, b = 1;
+  for (var i = 0; i < count; i++) {
+    await Future.delayed(Duration(milliseconds: 200));
+    yield a;
+    var next = a + b;
+    a = b;
+    b = next;
+  }
+}
+
+void main() async {
+  await for (var n in count(3)) {
+    print(n); // 1, 2, 3
+  }
+
+  await for (var n in fibonacci(5)) {
+    print(n); // 0, 1, 1, 2, 3
+  }
+}
+```
+
+## yield vs yield*
+
+`yield` mengeluarkan satu nilai. `yield*` mendelegasikan ke stream lain.
+
+```dart
+Stream<int> numbers() async* {
+  yield 1;
+  yield 2;
+  yield 3;
+}
+
+Stream<int> moreNumbers() async* {
+  yield* numbers(); // Semua nilai dari numbers() dialirkan ke sini
+  yield 4;
+  yield 5;
+}
+
+// yield* juga bisa recursive
+Stream<int> countUpTo(int max) async* {
+  if (max > 0) {
+    yield* countUpTo(max - 1);
+    yield max;
+  }
+}
+
+void main() async {
+  await for (var v in moreNumbers()) {
+    print(v); // 1, 2, 3, 4, 5
+  }
+
+  await for (var v in countUpTo(5)) {
+    print(v); // 1, 2, 3, 4, 5
+  }
+}
+```
+
+## Stream Transformation
+
+Stream punya method transformasi yang mirip dengan collection. Method ini mengembalikan stream baru, sehingga bisa di-chain.
+
+```dart
+import 'dart:async';
+
+void main() async {
+  final stream = Stream<int>.fromIterable([1, 2, 3, 4, 5, 6]);
+
+  // .map() — transformasi setiap elemen
+  await for (var v in stream.map((n) => n * 2)) {
+    print(v); // 2, 4, 6, 8, 10, 12
+  }
+
+  // .where() — filter
+  var filtered = Stream.fromIterable([1, 2, 3, 4, 5, 6]);
+  await for (var v in filtered.where((n) => n.isEven)) {
+    print(v); // 2, 4, 6
+  }
+
+  // .take() / .skip()
+  var taken = Stream.fromIterable([1, 2, 3, 4, 5]).take(3);
+  var skipped = Stream.fromIterable([1, 2, 3, 4, 5]).skip(3);
+  print(await taken.toList()); // [1, 2, 3]
+  print(await skipped.toList()); // [4, 5]
+
+  // .distinct() — hapus duplikat berurutan
+  var distinct = Stream.fromIterable([1, 1, 2, 2, 3, 1]);
+  print(await distinct.distinct().toList()); // [1, 2, 3, 1]
+
+  // Method chaining
+  var result = Stream.fromIterable([1, 2, 3, 4, 5, 6])
+      .where((n) => n.isOdd)
+      .map((n) => 'Ganjil: $n')
+      .take(2);
+  await for (var v in result) {
+    print(v); // Ganjil: 1, Ganjil: 3
+  }
+}
+```
+
+## await for Loop
+
+`await for` adalah cara paling bersih untuk mengonsumsi stream. Ia loop selama stream belum selesai.
+
+```dart
+import 'dart:async';
+
+Stream<String> getMessages() async* {
+  for (var msg in ['Halo', 'Apa kabar?', 'Sampai jumpa!']) {
+    await Future.delayed(Duration(seconds: 1));
+    yield msg;
+  }
+}
+
+void main() async {
+  print('Mulai...');
+
+  await for (final message in getMessages()) {
+    print('Pesan: $message');
+  }
+
+  print('Selesai.');
+
+  // Alternatif: listen() dengan callback
+  getMessages().listen((msg) => print('Listen: $msg'));
+}
+```
+
+| `await for` | `.listen()` |
+|-------------|-------------|
+| Deklaratif, mirip loop biasa | Callback-based |
+| Otomatis handle lifecycle | Butuh manage subscription |
+| Tidak bisa dipause per iterasi | Bisa pause/resume/cancel |
+| Cocok untuk finite stream | Cocok untuk infinite stream |
+
+## StreamSubscription
+
+`StreamSubscription` memberi Anda kontrol penuh — pause, resume, dan cancel.
+
+```dart
+import 'dart:async';
+
+void main() async {
+  final stream = Stream.periodic(
+    Duration(milliseconds: 500),
+    (i) => 'Data ke-$i',
+  );
+
+  StreamSubscription<String>? sub;
+  sub = stream.listen((data) => print('Terima: $data'));
+
+  await Future.delayed(Duration(seconds: 2));
+  print('--- PAUSE ---');
+  sub.pause();
+
+  await Future.delayed(Duration(seconds: 2));
+  print('--- RESUME ---');
+  sub.resume();
+
+  await Future.delayed(Duration(seconds: 2));
+  print('--- CANCEL ---');
+  await sub.cancel();
+  print('Subscription dibatalkan');
+}
+```
+
+**Lifecycle**: Listen → Pause (buffer data) → Resume → Cancel (permanen, release resources). Selalu cancel di `dispose()`.
+
+## StreamBuilder di Flutter
+
+Di Flutter, `StreamBuilder<T>` adalah widget yang re-render setiap kali stream mengirim data baru.
+
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+
+class CounterPage extends StatefulWidget {
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  final StreamController<int> _controller = StreamController<int>.broadcast();
+  int _count = 0;
+  late StreamSubscription<int> _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = Stream.periodic(Duration(seconds: 1), (i) => i).listen((i) {
+      _count++;
+      _controller.add(_count);
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel(); // WAJIB
+    _controller.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('StreamBuilder Demo')),
+      body: Center(
+        child: StreamBuilder<int>(
+          stream: _controller.stream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return CircularProgressIndicator();
+            }
+            if (snapshot.hasError) {
+              return Text('Error: ${snapshot.error}',
+                  style: TextStyle(color: Colors.red));
+            }
+            if (!snapshot.hasData) {
+              return Text('Belum ada data');
+            }
+            return Text('${snapshot.data}',
+                style: TextStyle(fontSize: 72, fontWeight: FontWeight.bold));
+          },
+        ),
+      ),
+    );
+  }
+}
+```
+
+**Snapshot states**: `none` (belum listen), `waiting` (tunggu data pertama), `active` (sedang mengalir), `done` (selesai).
+
+## Error Handling
+
+Error di stream bisa ditangani dengan beberapa cara.
+
+```dart
+Stream<int> faultyStream() async* {
+  yield 1;
+  yield 2;
+  throw Exception('Gagal!');
+}
+
+// Cara 1: handleError()
+void example1() {
+  faultyStream().handleError((e) => print('Error: $e')).listen(print);
+}
+
+// Cara 2: try/catch di await for
+void example2() async {
+  try {
+    await for (var v in faultyStream()) {
+      print(v);
+    }
+  } catch (e) {
+    print('Caught: $e');
+  }
+}
+
+// Cara 3: Transform error jadi data (graceful degradation)
+Stream<String> safeStream() async* {
+  try {
+    await for (var v in faultyStream()) {
+      yield 'OK: $v';
+    }
+  } catch (e) {
+    yield 'Gagal: $e'; // Error berubah menjadi data normal
+  }
+}
+
+void main() async {
+  await for (var m in safeStream()) {
+    print(m); // OK: 1, OK: 2, Gagal: Exception: Gagal!
+  }
+}
+```
+
+Setelah error, stream berhenti — kecuali Anda transform seperti `safeStream()` di atas.
+
+## Contoh Real-World
+
+### Timer Stream — Countdown
+
+```dart
+import 'dart:async';
+
+class CountdownTimer {
+  final int totalSeconds;
+  StreamSubscription<int>? _sub;
+
+  Stream<int> _createStream() async* {
+    for (var i = totalSeconds; i >= 0; i--) {
+      await Future.delayed(Duration(seconds: 1));
+      yield i;
+    }
+  }
+
+  CountdownTimer(this.totalSeconds);
+
+  void start(void Function(int) onTick, VoidCallback onFinish) {
+    _sub = _createStream().listen(
+      (s) => onTick(s),
+      onDone: onFinish,
+    );
+  }
+
+  void cancel() => _sub?.cancel();
+}
+
+void main() async {
+  final timer = CountdownTimer(5);
+  timer.start((s) => print('Sisa: $s detik'), () => print('Waktu habis!'));
+  await Future.delayed(Duration(seconds: 7));
+}
+```
+
+### WebSocket Stream Pattern
+
+```dart
+import 'dart:async';
+
+class ChatClient {
+  final StreamController<String> _messages = StreamController<String>.broadcast();
+  Stream<String> get messages => _messages.stream;
+
+  // Simulasi connect ke WebSocket
+  void connect() {
+    // Di real code: WebSocket.connect(url).then((ws) {
+    //   ws.listen((data) => _messages.add(data.toString()));
+    // });
+  }
+
+  void send(String message) {
+    _messages.add('[Anda]: $message');
+  }
+
+  void dispose() {
+    _messages.close();
+  }
+}
+
+void main() {
+  final chat = ChatClient();
+  chat.messages.listen((msg) => print(msg));
+  chat.send('Halo!');
+  chat.send('Apa kabar?');
+  chat.dispose();
+}
+```
+
+## Common Mistakes
+
+### 1. Lupa Cancel Subscription (Memory Leak)
+
+```dart
+@override
+void dispose() {
+  // ❌ Lupa cancel — stream terus berjalan, callback manggil widget mati
+  super.dispose();
+}
+
+@override
+void dispose() {
+  _subscription.cancel(); // ✅ WAJIB
+  super.dispose();
+}
+```
+
+### 2. Double Listen pada Single-Subscription Stream
+
+```dart
+var stream = Stream.fromIterable([1, 2, 3]);
+stream.listen(print);
+stream.listen(print); // ❌ Bad state: Stream already listened to
+```
+
+**Solusi**: Pakai `broadcast()`, `asBroadcastStream()`, atau `StreamController.broadcast()`.
+
+### 3. Stream Tidak Mulai Sampai Di-Listen
+
+```dart
+var stream = Stream.periodic(Duration(seconds: 1), (i) => i);
+await Future.delayed(Duration(seconds: 3)); // Tidak ada output
+stream.listen(print); // Baru mulai di sini
+```
+
+Stream bersifat **lazy** — tidak produksi data sampai ada yang listen.
+
+### 4. Lupa Handle Error
+
+```dart
+Stream.error(Exception('Oops!')).listen(print);
+// ❌ Unhandled exception — crash
+```
+
+```dart
+Stream.error(Exception('Oops!')).listen(
+  print,
+  onError: (e) => print('Tertangkap: $e'),
+);
+```
+
+### 5. await for di Luar async Function
+
+```dart
+void main() {
+  // await for (var v in stream) { ... } // ERROR
+}
+
+// void main() async { // ✅ harus async
+//   await for (var v in stream) { ... }
+// }
+```
+
+### 6. Broadcast Stream Kehilangan Data Pertama
+
+```dart
+var ctrl = StreamController<int>.broadcast();
+ctrl.add(1);
+ctrl.add(2);
+ctrl.stream.listen(print); // Hanya dapat 3, 4 — data 1,2 sudah lewat
+ctrl.add(3);
+ctrl.add(4);
+```
+
+Broadcast stream tidak menyimpan history. Gunakan `BehaviorSubject` dari package `rxdart` kalau perlu nilai terakhir.
+
+## Ringkasan
+
+| Konsep | Kegunaan |
+|--------|----------|
+| `Stream<T>` | Aliran data asinkron dengan banyak nilai |
+| `StreamController` | Membuat dan kontrol stream secara manual |
+| `async*` / `yield` | Membuat stream generator |
+| `await for` | Consume stream dengan loop |
+| `StreamSubscription` | Kontrol pause, resume, cancel |
+| `StreamBuilder<T>` | Widget Flutter untuk UI reaktif |
+| `.map()`, `.where()` | Transformasi stream |
+| Single vs Broadcast | Satu listener vs banyak listener |
+
+## Apa Selanjutnya?
+
+Stream adalah fondasi pemrograman **reaktif** di Dart dan Flutter. Dengan stream, Anda bisa menangani data real-time, event handling, dan state management dengan pattern yang konsisten.
+
+Selanjutnya, pelajari **Tutorial Flutter** — di mana stream digunakan untuk:
+- **State Management** dengan StreamBuilder
+- **Event Handling** (tap, swipe, gesture)
+- **Form Validation** real-time
+- **Firebase Realtime Database** dan **Cloud Firestore** yang berbasis stream

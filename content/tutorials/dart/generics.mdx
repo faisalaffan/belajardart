@@ -1,0 +1,522 @@
+---
+title: Generics
+description: Pelajari generics di Dart — generic classes, generic functions, type constraints, dan mengapa generics penting untuk type safety dan code reuse.
+---
+
+## Apa itu Generics?
+
+Bayangkan Anda punya sebuah kotak. Kotak ini bisa diisi apa saja — pensil, buku, penghapus. Kalau Anda membuat kotak tanpa label, Anda harus mengecek isinya setiap kali mau ambil sesuatu. Di Dart, **generics** adalah cara memberi label pada kotak itu: "kotak ini khusus pensil", "kotak ini khusus buku". Dengan label, Anda tidak perlu membuka kotak untuk tahu isinya apa.
+
+Secara teknis, generics memungkinkan Anda menulis **class**, **method**, atau **function** yang bisa bekerja dengan berbagai tipe data, tapi tetap **type-safe** pada saat kompilasi. Ini berbeda dengan menggunakan `dynamic`, yang menunda pengecekan tipe ke runtime.
+
+```dart
+// Tanpa generics — pake dynamic, error baru ketahuan di runtime
+class Box {
+  dynamic value;
+  Box(this.value);
+}
+
+// Dengan generics — error langsung ketahuan di compile time
+class Box<T> {
+  T value;
+  Box(this.value);
+}
+```
+
+Dengan `dynamic`, Anda bisa memasukkan `String` lalu mengambilnya sebagai `int` tanpa peringatan. Dengan generic, compiler akan mengingatkan Anda langsung.
+
+## Generic Class
+
+Generic class adalah class yang punya **type parameter** di dalam angle brackets `< >`. Anda bisa membuat instance dengan tipe yang berbeda-beda.
+
+```dart
+class Box<T> {
+  T value;
+
+  Box(this.value);
+
+  T getValue() => value;
+
+  void setValue(T newValue) {
+    value = newValue;
+  }
+}
+
+void main() {
+  // Box untuk String
+  var stringBox = Box<String>('Halo Dart');
+  print(stringBox.getValue()); // Halo Dart
+  // stringBox.setValue(42); // ERROR: int bukan String
+
+  // Box untuk int
+  var intBox = Box<int>(42);
+  print(intBox.getValue()); // 42
+
+  // Box untuk List<double>
+  var listBox = Box<List<double>>([1.5, 2.5, 3.5]);
+  print(listBox.getValue()); // [1.5, 2.5, 3.5]
+
+  // Type inference — Dart bisa nebak tipenya
+  var inferredBox = Box('Otomatis'); // Box<String>
+  print(inferredBox.getValue()); // Otomatis
+}
+```
+
+**Catatan**: Dart cukup pintar untuk melakukan **type inference**. Kalau Anda menulis `Box('teks')`, Dart tahu ini `Box<String>`. Anda tidak harus selalu menulis `<String>` secara eksplisit, tapi kadang menulisnya membantu readability.
+
+## Generic Function
+
+Function juga bisa generic. Ini sangat berguna untuk utility functions yang harus bekerja dengan berbagai tipe.
+
+```dart
+// Generic function — ambil elemen pertama dari list
+T first<T>(List<T> items) {
+  return items[0];
+}
+
+// Generic function — balikkan urutan list
+List<T> reverse<T>(List<T> items) {
+  return items.reversed.toList();
+}
+
+// Generic function — cari index elemen
+int? indexOf<T>(List<T> items, T item) {
+  for (var i = 0; i < items.length; i++) {
+    if (items[i] == item) return i;
+  }
+  return null;
+}
+
+void main() {
+  final numbers = [10, 20, 30, 40];
+  final names = ['Alice', 'Bob', 'Charlie'];
+
+  // Type inference bekerja di sini
+  print(first(numbers)); // 10
+  print(first(names)); // Alice
+
+  print(reverse(numbers)); // [40, 30, 20, 10]
+  print(reverse(names)); // [Charlie, Bob, Alice]
+
+  print(indexOf(numbers, 30)); // 2
+  print(indexOf(names, 'Bob')); // 1
+  print(indexOf(names, 'Diana')); // null
+}
+```
+
+Perhatikan bahwa Anda tidak perlu menulis `first<int>(numbers)` — Dart menyimpulkan tipe `T` dari argumen yang Anda berikan.
+
+## Type Constraints
+
+Kadang Anda tidak mau generic yang benar-benar bebas. Misalnya, Anda ingin function yang hanya bekerja untuk tipe angka, atau tipe yang bisa dibandingkan. Di sinilah **type constraint** dengan kata kunci `extends` berguna.
+
+```dart
+// Hanya untuk tipe num (int atau double)
+T sum<T extends num>(List<T> items) {
+  T total = items[0];
+  for (var i = 1; i < items.length; i++) {
+    total += items[i] as T; // butuh cast karena operator +
+  }
+  return total;
+}
+
+// Generic dengan Comparable constraint
+class SortedList<T extends Comparable<T>> {
+  final List<T> _items = [];
+
+  void add(T item) {
+    _items.add(item);
+    _items.sort();
+  }
+
+  List<T> get items => List.unmodifiable(_items);
+
+  T get smallest => _items.first;
+  T get largest => _items.last;
+}
+
+void main() {
+  // sum hanya untuk num
+  print(sum<int>([1, 2, 3, 4, 5])); // 15
+  print(sum<double>([1.5, 2.5, 3.0])); // 7.0
+  // sum<String>(['a', 'b']); // ERROR: String tidak extends num
+
+  // SortedList hanya untuk Comparable
+  final sortedInts = SortedList<int>();
+  sortedInts.add(5);
+  sortedInts.add(1);
+  sortedInts.add(3);
+  print(sortedInts.items); // [1, 3, 5]
+  print(sortedInts.smallest); // 1
+  print(sortedInts.largest); // 5
+
+  final sortedStrings = SortedList<String>();
+  sortedStrings.add('zebra');
+  sortedStrings.add('apple');
+  sortedStrings.add('mango');
+  print(sortedStrings.items); // [apple, mango, zebra]
+}
+```
+
+**Kenapa perlu constraint?** Tanpa constraint, Anda tidak bisa memanggil `.sort()` atau operator `+` karena Dart tidak tahu apakah tipe `T` memiliki method tersebut. Constraint memberikan jaminan ke compiler bahwa tipe tertentu memiliki kemampuan tertentu.
+
+## Multiple Type Parameters
+
+Anda bisa punya lebih dari satu type parameter. Ini sangat umum untuk struktur data seperti **Pair**, **Map**, atau **Result**.
+
+```dart
+// Pair dengan dua tipe berbeda
+class Pair<K, V> {
+  final K key;
+  final V value;
+
+  Pair(this.key, this.value);
+
+  @override
+  String toString() => 'Pair($key: $value)';
+}
+
+// Triple dengan tiga tipe berbeda
+class Triple<A, B, C> {
+  final A first;
+  final B second;
+  final C third;
+
+  Triple(this.first, this.second, this.third);
+}
+
+// Result pattern — sukses atau gagal
+class Result<T, E> {
+  final T? data;
+  final E? error;
+
+  Result.success(this.data) : error = null;
+  Result.failure(this.error) : data = null;
+
+  bool get isSuccess => data != null;
+  bool get isFailure => error != null;
+
+  T getOrThrow() {
+    if (data != null) return data as T;
+    throw Exception(error.toString());
+  }
+}
+
+void main() {
+  // Pair
+  var pair1 = Pair<String, int>('usia', 25);
+  var pair2 = Pair<String, String>('nama', 'Alice');
+  var pair3 = Pair<int, bool>(1, true);
+
+  print(pair1); // Pair(usia: 25)
+  print(pair2); // Pair(nama: Alice)
+
+  // Triple
+  var triple = Triple<String, int, double>('Bob', 30, 175.5);
+  print('${triple.first}: ${triple.second} tahun, ${triple.third} cm');
+
+  // Result
+  var success = Result<int, String>.success(42);
+  var failure = Result<int, String>.failure('Gagal terhubung');
+
+  print(success.isSuccess); // true
+  print(failure.isFailure); // true
+  print(success.getOrThrow()); // 42
+  // print(failure.getOrThrow()); // throws Exception
+}
+```
+
+## Built-in Generics di Dart
+
+Hampir semua collection di Dart menggunakan generics. Ini bukan kebetulan — generics adalah fondasi type safety di Dart.
+
+```dart
+void main() {
+  // List<T> — list dengan tipe elemen tertentu
+  List<String> fruits = ['apel', 'mangga', 'pisang'];
+  // fruits.add(42); // ERROR
+
+  // Map<K, V> — map dengan tipe key dan value
+  Map<String, int> scores = {
+    'Alice': 95,
+    'Bob': 87,
+    'Charlie': 92,
+  };
+
+  // Set<T> — set dengan tipe elemen tertentu
+  Set<int> uniqueNumbers = {1, 2, 3, 3, 2, 1};
+  print(uniqueNumbers); // {1, 2, 3} — duplikat otomatis hilang
+
+  // Future<T> — future yang menghasilkan nilai bertipe T
+  Future<String> fetchData() async {
+    await Future.delayed(Duration(seconds: 1));
+    return 'Data dari server';
+  }
+
+  // Stream<T> — stream yang mengalirkan nilai bertipe T
+  Stream<int> countStream() {
+    return Stream.periodic(Duration(seconds: 1), (i) => i).take(5);
+  }
+
+  // Perhatikan: Future<void> untuk operasi tanpa nilai balik
+  Future<void> logMessage(String message) async {
+    print('[LOG]: $message');
+  }
+}
+```
+
+**Type inference juga bekerja di sini:**
+```dart
+void main() {
+  var list = [1, 2, 3]; // List<int>
+  var map = {'key': 'value'}; // Map<String, String>
+  var set = {1, 2, 3}; // Set<int>
+
+  // Kalau kosong, Anda harus kasih type annotation
+  var emptyList = <int>[];
+  var emptyMap = <String, int>{};
+  var emptySet = <String>{};
+}
+```
+
+## Generic Collection Methods
+
+Collection di Dart punya banyak method generic untuk transformasi data. Method ini sangat berguna dalam pemrograman fungsional.
+
+```dart
+void main() {
+  // .cast<T>() — mengubah List<dynamic> ke List<T>
+  List<dynamic> mixed = [1, 2, 3, 4, 5];
+  var ints = mixed.cast<int>();
+  print(ints.runtimeType); // List<int>
+
+  // .map<T>() — transformasi setiap elemen
+  var numbers = [1, 2, 3, 4, 5];
+  var squared = numbers.map<int>((n) => n * n);
+  print(squared.toList()); // [1, 4, 9, 16, 25]
+
+  // .whereType<T>() — filter elemen berdasarkan tipe
+  var items = [1, 'hello', 2.5, 'world', 3, true];
+  var strings = items.whereType<String>();
+  print(strings.toList()); // [hello, world]
+
+  var nums = items.whereType<num>();
+  print(nums.toList()); // [1, 2.5, 3]
+
+  // .expand<T>() — flatten collection
+  var nested = [
+    [1, 2],
+    [3, 4],
+    [5, 6]
+  ];
+  var flat = nested.expand<int>((list) => list);
+  print(flat.toList()); // [1, 2, 3, 4, 5, 6]
+
+  // Generic method chaining
+  var result = [1, 2, 3, 4, 5, 6]
+      .where((n) => n.isEven) // filter genap
+      .map((n) => 'Angka: $n') // jadi string
+      .toList();
+  print(result); // [Angka: 2, Angka: 4, Angka: 6]
+}
+```
+
+## Generic Method di Class Non-Generic
+
+Anda bisa membuat method generic di dalam class yang tidak generic. Ini sangat umum di Flutter widgets atau utility classes.
+
+```dart
+class Utils {
+  // Static generic method
+  static T? parseOrNull<T>(String source, T Function(String) parser) {
+    try {
+      return parser(source);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Instance generic method
+  List<T> filterByType<T>(List<dynamic> items) {
+    return items.whereType<T>().toList();
+  }
+
+  // Generic method dengan multiple type params
+  Map<K, V> zipToMap<K, V>(List<K> keys, List<V> values) {
+    if (keys.length != values.length) {
+      throw ArgumentError('Panjang keys dan values harus sama');
+    }
+    return Map.fromIterables(keys, values);
+  }
+}
+
+void main() {
+  // Static generic
+  var asInt = Utils.parseOrNull<int>('42', int.parse);
+  print(asInt); // 42
+
+  var asDouble = Utils.parseOrNull<double>('3.14', double.parse);
+  print(asDouble); // 3.14
+
+  var gagal = Utils.parseOrNull<int>('bukan-angka', int.parse);
+  print(gagal); // null — ParseException ditangkap
+
+  // Filter by type
+  var utils = Utils();
+  var campuran = [1, 'a', 2, 'b', 3, 'c'];
+  print(utils.filterByType<String>(campuran)); // [a, b, c]
+  print(utils.filterByType<int>(campuran)); // [1, 2, 3]
+
+  // Zip to map
+  var keys = ['nama', 'usia', 'kota'];
+  var values = ['Alice', 25, 'Jakarta'];
+  var map = utils.zipToMap<String, dynamic>(keys, values);
+  print(map); // {nama: Alice, usia: 25, kota: Jakarta}
+}
+```
+
+## Common Mistakes
+
+### 1. Lupa Type Argument (Raw Types)
+
+```dart
+void main() {
+  // Peringatan: raw type — jangan lakukan ini
+  // List list = [1, 2, 3]; // Warning: missing type argument
+  // Map map = {}; // Warning: missing type argument
+
+  // Benar:
+  List<int> list = [1, 2, 3];
+  Map<String, int> map = {};
+
+  // Atau pakai var/inference
+  var list2 = [1, 2, 3]; // List<int>
+  var map2 = {'a': 1}; // Map<String, int>
+}
+```
+
+**Kenapa raw types berbahaya?** Karena Anda bisa memasukkan tipe yang salah tanpa peringatan:
+
+```dart
+void main() {
+  List list = [1, 2, 3]; // raw type — warning
+  list.add('hello'); // Tidak error! Padahal seharusnya
+
+  List<int> list2 = [1, 2, 3];
+  // list2.add('hello'); // ERROR: String tidak bisa masuk List<int>
+}
+```
+
+### 2. Constraint Terlalu Ketat
+
+```dart
+// Terlalu ketat — hanya menerima List<num>, bukan subclass
+void processNumbers1(List<num> items) {
+  // ...
+}
+
+// Lebih fleksibel — menerima List apa pun yang extends num
+void processNumbers2<T extends num>(List<T> items) {
+  // ...
+}
+
+void main() {
+  var ints = <int>[1, 2, 3];
+  // processNumbers1(ints); // ERROR! List<int> bukan subtype List<num>
+  processNumbers2(ints); // OK — T = int
+}
+```
+
+**Invarian generics**: Di Dart, `List<int>` bukan subtype dari `List<num>`, meskipun `int` adalah subtype `num`. Ini disebut **invariance**. Gunakan generic function dengan constraint untuk mengakomodasi ini.
+
+### 3. Generics vs Dynamic — Jangan Tertukar
+
+```dart
+// ❌ Menggunakan dynamic — kehilangan type safety
+List<dynamic> items = [1, 'dua', 3];
+// items[1] adalah dynamic — tidak ada compile-time check
+
+// ✅ Menggunakan generics yang tepat
+List<int> angka = [1, 2, 3]; // type-safe
+List<String> teks = ['satu', 'dua']; // type-safe
+
+// ❌ Cast tanpa constraint
+T firstItem<T>(List<dynamic> items) {
+  return items[0] as T; // crash kalau tipe tidak sesuai
+}
+
+// ✅ Lebih aman dengan whereType
+T firstItemSafe<T>(List<dynamic> items) {
+  return items.whereType<T>().first;
+}
+```
+
+Gunakan `dynamic` hanya jika Anda benar-benar tidak tahu tipenya dan sudah siap handle error di runtime. Generics memberikan jaminan di compile time.
+
+### 4. Type Inference Gagal pada Konteks Tertentu
+
+```dart
+void main() {
+  // Inference gagal — kosong tanpa type info
+  // var list = []; // List<dynamic> — mungkin bukan yang Anda mau
+
+  // Benar:
+  var list = <int>[];
+  List<int> list2 = [];
+
+  // Inference gagal di parameter tertentu
+  // var box = Box(null); // T inferred sebagai Null, mungkin tidak sesuai
+  var box = Box<String?>(null); // eksplisit lebih baik
+}
+```
+
+## Generic di Flutter — Contoh Singkat
+
+Di Flutter, generics ada di mana-mana. Ini contoh sederhana:
+
+```dart
+import 'package:flutter/material.dart';
+
+// Generic widget — bisa menampilkan tipe data apa pun
+class DataCard<T> extends StatelessWidget {
+  final T data;
+  final String Function(T) labelBuilder;
+
+  DataCard({required this.data, required this.labelBuilder});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Text(
+          labelBuilder(data),
+          style: TextStyle(fontSize: 18),
+        ),
+      ),
+    );
+  }
+}
+
+// Contoh penggunaan:
+// DataCard<int>(data: 42, labelBuilder: (n) => 'Angka: $n');
+// DataCard<User>(data: user, labelBuilder: (u) => u.name);
+```
+
+## Ringkasan
+
+| Konsep | Kegunaan |
+|--------|----------|
+| `Box<T>` | Generic class dengan satu type parameter |
+| `T first<T>(List<T>)` | Generic function |
+| `T extends num` | Type constraint — batasi tipe yang bisa dipakai |
+| `Pair<K, V>` | Multiple type parameters |
+| `List<T>`, `Map<K,V>` | Built-in generics |
+| `.cast<T>()`, `.map<T>()` | Generic collection methods |
+| Type inference | Dart otomatis menentukan tipe dari konteks |
+
+## Apa Selanjutnya?
+
+Anda sudah menguasai generics di Dart — fondasi untuk menulis kode yang **type-safe**, **reusable**, dan **ekspresif**. Tanpa generics, banyak pattern di Dart dan Flutter tidak akan berfungsi dengan baik.
+
+Selanjutnya, pelajari **Streams**, yang menggunakan generics secara intensif untuk mengalirkan data sepanjang waktu. Streams adalah konsep penting untuk pemrograman reaktif, event handling, dan state management di Flutter.
