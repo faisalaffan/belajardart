@@ -1,0 +1,191 @@
+---
+title: Hello World — Aplikasi Flutter Pertama
+description: Buat, pahami, dan jalankan aplikasi Flutter pertama Anda. Kenali struktur proyek, hot reload, dan cara memodifikasi UI.
+---
+
+# Hello World
+
+Buat aplikasi Flutter pertama Anda. Pahami struktur proyek, jalankan di emulator, dan modifikasi UI dengan hot reload.
+
+## Buat Project
+
+```bash
+flutter create belajar_flutter
+cd belajar_flutter
+```
+
+Output:
+```
+Creating project belajar_flutter...
+Resolving dependencies in belajar_flutter...
+Got dependencies in belajar_flutter.
+Wrote 129 files.
+
+All done!
+```
+
+## Struktur Proyek
+
+```
+belajar_flutter/
+├── android/          # Konfigurasi Android-native
+├── ios/              # Konfigurasi iOS-native
+├── lib/              # Kode Dart aplikasi Anda ⭐
+│   └── main.dart     # Entry point aplikasi
+├── test/             # Unit & widget test
+├── web/              # Konfigurasi web
+├── pubspec.yaml      # Dependencies & metadata proyek
+└── analysis_options.yaml  # Lint rules
+```
+
+Folder paling penting: `lib/` — semua kode Dart Anda di sini. `pubspec.yaml` — tempat deklarasi package dependency.
+
+## Buka `lib/main.dart`
+
+Berikut isi default `main.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  int _counter = 0;
+
+  void _incrementCounter() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(widget.title),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text('You have pushed the button this many times:'),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+### Memahami Kode
+
+1. **`main()`** — entry point aplikasi. `runApp()` me-mount widget tree ke layar.
+2. **`MyApp`** — root widget, `StatelessWidget` karena tidak punya state yang berubah.
+3. **`MaterialApp`** — menyediakan tema, routing, navigasi — kerangka aplikasi Material Design.
+4. **`MyHomePage`** — halaman utama, `StatefulWidget` karena punya `_counter` yang bisa berubah.
+5. **`Scaffold`** — struktur halaman: AppBar, body, FAB.
+6. **`setState()`** — memberi tahu Flutter: "state berubah, rebuild UI."
+
+## Jalankan Aplikasi
+
+### Pilih Device
+
+```bash
+flutter devices
+```
+
+Output contoh:
+```
+2 connected devices:
+iPhone 15 (mobile)  • A1B2C3D4... • ios       • iOS 17.x
+Chrome (web)        • chrome       • web-javascript • Google Chrome
+```
+
+### Jalankan
+
+```bash
+flutter run
+```
+
+Atau tekan **F5** di VS Code.
+
+Aplikasi akan terbuka di emulator/device. Tekan tombol + — counter bertambah.
+
+## Hot Reload
+
+Hot reload adalah fitur unggulan Flutter: **ubah kode, lihat hasilnya dalam < 1 detik, tanpa restart.**
+
+Coba sekarang:
+1. Ubah teks di `Text('You have pushed the button this many times:')` menjadi `Text('Jumlah klik:')`
+2. Simpan file (Ctrl+S)
+3. UI berubah instan — counter TIDAK reset
+
+Hot reload mempertahankan state. Sangat berguna untuk iterasi UI cepat.
+
+### Hot Reload vs Hot Restart vs Full Restart
+
+| Mode | Trigger | State | Kecepatan |
+|------|---------|-------|-----------|
+| **Hot Reload** | Simpan file / `r` di terminal | Tetap | <1 detik |
+| **Hot Restart** | `R` di terminal | Reset | 2-3 detik |
+| **Full Restart** | `Ctrl+C` lalu `flutter run` | Reset | 10-30 detik |
+
+Gunakan hot reload untuk UI tweak. Gunakan hot restart kalau state kacau.
+
+## Modifikasi Pertama
+
+Coba modifikasi sederhana — ubah warna tema:
+
+```dart
+theme: ThemeData(
+  colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+  useMaterial3: true,
+),
+```
+
+Hot reload (simpan file) — warna AppBar dan FAB berubah menjadi teal.
+
+## Apa Selanjutnya?
+
+Aplikasi pertama sudah jalan. Saatnya belajar Flutter lebih dalam:
+
+- **[Widget Catalog](/docs/widget-catalog)** — Kenali widget-widget penting
+- **[Flutter Fundamentals](/docs/tutorials/flutter/fundamentals)** — Mulai tutorial terstruktur
+- **[Tutorial Dart](/docs/tutorials/dart)** — Perkuat fondasi Dart Anda

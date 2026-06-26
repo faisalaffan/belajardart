@@ -1,0 +1,95 @@
+---
+title: Editor Setup
+description: Konfigurasi VS Code dan Android Studio untuk development Flutter — extension, shortcuts, debugging, dan tips produktivitas.
+---
+
+# Editor Setup
+
+Pilih dan setup editor untuk development Flutter. VS Code dan Android Studio keduanya didukung penuh.
+
+## VS Code (Rekomendasi)
+
+VS Code ringan, cepat, dan memiliki dukungan Flutter yang sangat baik.
+
+### Install Extension
+
+1. Buka VS Code → Extensions (Ctrl+Shift+X)
+2. Cari dan install **Flutter** extension (vendor: Dart-Code)
+3. Flutter extension otomatis menginstall **Dart** extension sebagai dependency
+
+### Fitur Utama
+
+- **Hot reload on save** — aktifkan dengan setting `dart.flutterHotReloadOnSave: true`
+- **Widget snippet** — ketik `stless` untuk StatelessWidget, `stful` untuk StatefulWidget
+- **Autocomplete** — Dart code completion otomatis
+- **Debugging** — breakpoint, step through, variable inspection
+- **Device selector** — pilih emulator/device dari status bar bawah
+- **Widget inspector** — klik ikon kaca pembesar di debug toolbar
+
+### Settings yang Direkomendasikan
+
+Di `settings.json` (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)"):
+
+```json
+{
+  "dart.flutterHotReloadOnSave": "always",
+  "dart.previewFlutterUiGuides": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "dart.showInspectorNotificationsForWidgetErrors": true
+}
+```
+
+### Shortcuts Penting
+
+| Shortcut | Fungsi |
+|----------|--------|
+| **F5** | Start debugging (flutter run) |
+| **Shift+F5** | Stop debugging |
+| **Ctrl+F5** | Run without debugging |
+| **F12** | Go to definition |
+| **Shift+F12** | Find all references |
+| **F2** | Rename symbol |
+| **Ctrl+.** | Quick fix (wrap with widget, extract widget, dll) |
+| **Ctrl+Shift+P → Flutter: New Project** | Buat project baru |
+| **Ctrl+Shift+P → Flutter: Launch Emulator** | Buka emulator |
+
+## Android Studio
+
+Android Studio lebih berat tapi menyediakan fitur Android-native yang lengkap.
+
+### Install Plugin
+
+1. Buka Android Studio → Settings → Plugins
+2. Cari **Flutter** → Install
+3. Restart IDE
+
+### Fitur Utama
+
+- **Android Emulator Manager** — AVD Manager built-in
+- **Visual layout editor** — drag-and-drop widget (kurang direkomendasikan, lebih baik tulis kode)
+- **Logcat** — monitoring log Android
+- **Device File Explorer** — akses file system device
+
+### Tips
+
+- Gunakan Android Studio untuk AVD management dan Android-specific debugging
+- Gunakan VS Code untuk daily coding — lebih ringan dan cepat
+
+## Cek Setup
+
+Setelah editor terinstall, verifikasi:
+
+```bash
+# Di terminal VS Code (Ctrl+`)
+flutter doctor
+# Harus melihat:
+# [✓] VS Code (version x.x.x)
+```
+
+## Apa Selanjutnya?
+
+Editor siap — saatnya membuat aplikasi pertama di [Hello World →](/docs/getting-started/hello-world)

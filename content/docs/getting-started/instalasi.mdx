@@ -1,0 +1,193 @@
+---
+title: Instalasi Flutter SDK
+description: Panduan instalasi Flutter SDK di Windows, macOS, dan Linux. Dari download sampai flutter doctor sukses — langkah demi langkah.
+---
+
+# Instalasi Flutter SDK
+
+Panduan instalasi Flutter SDK di semua platform. Ikuti langkah sesuai OS Anda.
+
+## Windows
+
+### Prasyarat
+- Windows 10 atau lebih baru (64-bit)
+- PowerShell 5.0+ atau Git Bash
+- Disk space minimal 2.5 GB
+
+### Langkah
+
+1. **Download Flutter SDK** dari [flutter.dev](https://flutter.dev/docs/get-started/install/windows). Pilih versi stable.
+
+2. **Ekstrak** ke lokasi yang diinginkan, misalnya `C:\src\flutter`. **Jangan** install di `C:\Program Files\` — butuh permission admin.
+
+```powershell
+Expand-Archive flutter_windows_x.x.x-stable.zip -DestinationPath C:\src\
+```
+
+3. **Tambahkan ke PATH**:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  'Path', 
+  [Environment]::GetEnvironmentVariable('Path', 'User') + ';C:\src\flutter\bin', 
+  'User'
+)
+```
+
+4. **Restart terminal** atau reload environment.
+
+5. **Verifikasi**:
+
+```bash
+flutter doctor
+```
+
+Output yang diharapkan:
+```
+Doctor summary (to see all details, run flutter doctor -v):
+[✓] Flutter (Channel stable, x.x.x, on Microsoft Windows ...)
+[✓] Android toolchain - develop for Android devices
+[!] Chrome - develop for the web (browser setup, ok)
+```
+
+Tanda centang hijau = oke. Tanda seru kuning = perlu perhatian tapi tidak blocking.
+
+### Android Setup
+
+Untuk development Android, install:
+
+1. **Android Studio** dari [developer.android.com/studio](https://developer.android.com/studio)
+2. Buka Android Studio → SDK Manager → install **Android SDK Platform-Tools** dan **Android SDK Command-line Tools**
+3. Setelah terinstall, buat AVD (Android Virtual Device):
+
+```bash
+flutter emulators
+flutter devices
+```
+
+## macOS
+
+### Prasyarat
+- macOS 12 (Monterey) atau lebih baru
+- Xcode (untuk iOS development)
+- Homebrew (opsional, memudahkan)
+
+### Langkah
+
+1. **Download Flutter SDK**:
+
+```bash
+# Cara 1: Download zip dari flutter.dev
+# Ekstrak ke ~/development/flutter
+
+# Cara 2: Via Homebrew (opsional)
+brew install flutter
+```
+
+2. **Tambahkan ke PATH** (edit `~/.zshrc`):
+
+```bash
+echo 'export PATH="$HOME/development/flutter/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+3. **Verifikasi**:
+
+```bash
+flutter doctor
+```
+
+### iOS Setup
+
+1. Install Xcode dari App Store
+2. Buka Xcode minimal sekali untuk accept license
+3. Install CocoaPods:
+
+```bash
+sudo gem install cocoapods
+```
+
+4. Setup iOS simulator:
+
+```bash
+open -a Simulator
+```
+
+### Android Setup (macOS)
+
+Sama seperti Windows — install Android Studio, SDK Manager, buat AVD.
+
+## Linux
+
+### Prasyarat
+- Ubuntu 20.04+ / Debian 11+ / Fedora 38+ (64-bit)
+- bash, curl, git, unzip, xz-utils
+
+### Langkah
+
+1. **Install dependencies**:
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install curl git unzip xz-utils zip libglu1-mesa
+
+# Fedora
+sudo dnf install curl git unzip xz mesa-libGLU
+```
+
+2. **Download dan install**:
+
+```bash
+cd ~/development
+curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_x.x.x-stable.tar.xz
+tar xf flutter_linux_x.x.x-stable.tar.xz
+
+echo 'export PATH="$HOME/development/flutter/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+3. **Verifikasi**:
+
+```bash
+flutter doctor
+```
+
+### Android Setup (Linux)
+
+1. Download Android Studio dari [developer.android.com/studio](https://developer.android.com/studio)
+2. Extract ke `~/android-studio/`
+3. Jalankan: `~/android-studio/bin/studio.sh`
+4. SDK Manager → install platform tools dan command-line tools
+
+## flutter doctor — Memahami Output
+
+```bash
+$ flutter doctor
+Doctor summary (to see all details, run flutter doctor -v):
+[✓] Flutter (Channel stable, 3.x.x, on macOS ...)
+[✓] Android toolchain - develop for Android devices
+[✓] Xcode - develop for iOS and macOS
+[✓] Chrome - develop for the web
+[!] Android Studio (not installed)
+[✓] VS Code (version 1.x)
+[✓] Connected device (1 available)
+```
+
+- **✓** — siap digunakan
+- **!** — optional, bisa diabaikan jika tidak development untuk platform itu
+- **✗** — masalah serius, harus diperbaiki. Jalankan `flutter doctor -v` untuk detail.
+
+### Masalah Umum
+
+| Masalah | Solusi |
+|---------|--------|
+| `flutter: command not found` | PATH belum di-set. Restart terminal atau cek `echo $PATH` |
+| `Android SDK not found` | Buka Android Studio → SDK Manager → install SDK |
+| `cmdline-tools component is missing` | Install Android SDK Command-line Tools via SDK Manager |
+| `CocoaPods not installed` (macOS) | `sudo gem install cocoapods` |
+| `No devices available` | Jalankan emulator atau colok device fisik via USB |
+
+## Apa Selanjutnya?
+
+Setelah `flutter doctor` sukses, lanjut ke [Editor Setup →](/docs/getting-started/editor-setup)
