@@ -1,5 +1,5 @@
 {
   "title": "Tutorial",
   "root": true,
-  "pages": ["index", "---Dart---", "dart", "---Flutter---", "flutter-best-practices"]
+  "pages": ["index", "---Dart---", "dart", "---Flutter---", "flutter", "---Flutter Best Practices---", "flutter-best-practices"]
 }

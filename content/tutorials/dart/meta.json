@@ -1,5 +1,5 @@
 {
   "title": "Dart",
   "defaultOpen": true,
-  "pages": ["index", "variables-dan-tipe-data", "fungsi", "control-flow", "class-dan-object", "null-safety"]
+  "pages": ["index", "variables-dan-tipe-data", "fungsi", "control-flow", "class-dan-object", "null-safety", "collections", "async-await", "generics", "streams"]
 }
