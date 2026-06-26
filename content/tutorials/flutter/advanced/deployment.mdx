@@ -1,0 +1,1177 @@
+---
+title: Deployment
+description: Panduan deployment Flutter ke production — Android Play Store, iOS App Store, app flavors, CI/CD, dan Fastlane automation.
+---
+
+# Deployment Flutter ke Production
+
+## Pengantar
+
+Menulis kode Flutter adalah setengah perjalanan. Setengah lainnya adalah mengantarkan aplikasi ke pengguna. Deployment mencakup build signing, store submission, app flavors untuk environment berbeda, CI/CD automation, dan pre-deployment checklist. Satu kesalahan di tahap ini bisa menunda rilis berhari-hari.
+
+Tutorial ini membahas end-to-end deployment Flutter: dari konfigurasi signing lokal hingga CI/CD pipeline yang otomatis build dan deploy ke Play Store dan App Store.
+
+## Android Deployment
+
+### 1. Generate Keystore
+
+Android membutuhkan keystore (file .jks/.keystore) untuk menandatangani APK/AAB. Tanda tangan ini memverifikasi identitas developer.
+
+```bash
+# Generate keystore (sekali saja)
+keytool -genkey -v \
+  -keystore ~/upload-keystore.jks \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -alias upload
+```
+
+**Isi prompt keytool:**
+- Password keystore (simpan aman-amannya)
+- Konfirmasi password
+- Nama depan & belakang (nama developer/company)
+- Unit organisasi
+- Nama organisasi
+- Kota, provinsi, kode negara
+- Konfirmasi
+
+**PENTING:** Simpan keystore file dan password di tempat aman, bukan di repository.
+
+### 2. Konfigurasi key.properties
+
+```properties
+# android/key.properties — JANGAN di-commit ke git!
+storePassword=your_keystore_password
+keyPassword=your_key_password
+keyAlias=upload
+storeFile=/Users/you/path/to/upload-keystore.jks
+```
+
+**Security:** File ini berisi credential. Tambahkan ke `.gitignore`:
+
+```gitignore
+# .gitignore
+android/key.properties
+*.jks
+*.keystore
+```
+
+Untuk CI/CD, gunakan environment variables atau secret store (GitHub Secrets, Codemagic Environment Variables).
+
+### 3. Signing Config di build.gradle
+
+```gradle
+// android/app/build.gradle
+def keystoreProperties = new Properties()
+
+// Baca key.properties (local development)
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    // ... konfigurasi lain
+
+    defaultConfig {
+        applicationId "com.yourcompany.yourapp"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    // Konfigurasi signing
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ?
+                file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+
+            // Obfuscation & minification
+            // Requires dart code obfuscation in pubspec.yaml
+            // flutter build appbundle --obfuscate --split-debug-info=build/debug-info
+
+            // ProGuard (untuk Android native code)
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+```
+
+### 4. App Signing by Google Play
+
+Google merekomendasikan **App Signing by Google Play**. Flow-nya:
+
+1. Upload signing key (keystore) untuk app signing
+2. **Upload key** (key yang Anda buat) — digunakan untuk mengupload build ke Play Console
+3. **App signing key** — digunakan Google Play untuk menandatangani AAB yang didistribusikan ke pengguna
+
+**Keuntungan App Signing by Google Play:**
+- Jika upload key hilang/kompromi, Google bisa reset tanpa perlu ubah package name
+- Google manage app signing key distribution
+- Support untuk split APKs dan install APK expansion
+
+**Setup:**
+1. Di Play Console: Release > Setup > App Integrity
+2. Pilih "Let Google manage your app signing key" (atau upload existing key)
+3. Register upload key certificate
+
+### 5. Build Android App Bundle (.aab)
+
+```bash
+# Development build (debug)
+flutter build apk --debug
+
+# Release build (APK — untuk testing manual)
+flutter build apk --release
+
+# Release build (App Bundle — untuk Play Store)
+flutter build appbundle --release
+
+# Dengan obfuscation (recommended untuk production)
+flutter build appbundle \
+  --release \
+  --obfuscate \
+  --split-debug-info=build/debug-info
+
+# Dengan target platform
+flutter build appbundle --release --target-platform android-arm,android-arm64,android-x64
+```
+
+**APK vs AAB:**
+
+| Format | Ukuran | Distribusi | Use Case |
+|--------|--------|------------|----------|
+| APK | Besar ($\sim$50MB) | Manual/sideload | Testing internal |
+| AAB | Kecil ($\sim$30MB base) | Play Store | Production |
+| Split APK | Per-config ($\sim$15MB) | Google Play | Optimized delivery |
+
+Google Play mementukan AAB mulai Agustus 2023 untuk aplikasi baru. AAB memungkinkan **app bundle delivery** — pengguna hanya mendownload asset yang sesuai dengan device mereka.
+
+### 6. Android App Icon (Adaptive Icon)
+
+```xml
+<!-- android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background layer — warna solid atau pattern -->
+    <background android:drawable="@color/ic_launcher_background"/>
+    <!-- Foreground layer — logo, maks 72% dari icon area -->
+    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>
+
+<!-- android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background"/>
+    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>
+```
+
+```xml
+<!-- android/app/src/main/res/values/ic_launcher_background.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>
+```
+
+**Generate icon dengan tools:**
+- [Flutter Launcher Icons](https://pub.dev/packages/flutter_launcher_icons) — generate semua resolusi dari satu file PNG
+- [Android Studio Image Asset](https://developer.android.com/studio/write/image-asset-studio) — GUI tool
+
+### 7. Upload ke Google Play Console
+
+**Langkah-langkah:**
+1. Buka [Google Play Console](https://play.google.com/console)
+2. Create app (jika belum)
+3. Isi store listing: description, screenshots, category, content rating
+4. Production > Release > Create new release
+5. Upload AAB file (hasil `flutter build appbundle --release`)
+6. Isi "What's new in this release" (release notes)
+7. Review dan rollout
+
+**Tracks:**
+
+| Track | Tujuan | Coverage | Durasi Review |
+|-------|--------|---------|---------------|
+| **Internal Testing** | Developer & QA team | 100 user emails | Instant |
+| **Closed Testing** (Alpha) | Beta testers, friends | Up to 100 testers | Beberapa jam |
+| **Open Testing** (Beta) | Public beta | Unlimited | Beberapa jam |
+| **Production** | All users | 100% | Beberapa jam - 2 hari |
+
+**Best practice:** Mulai dari Internal Testing, lalu Alpha, lalu Production. Jangan langsung production — risiko regression.
+
+### Update Versi Setelah Release
+
+Jika ada bug setelah rilis production, Anda harus:
+1. Increment version code (build number) di pubspec.yaml
+2. Build ulang
+3. Upload sebagai **new release** dengan version code yang lebih tinggi
+4. Google Play tidak mengizinkan upload AAB dengan version code yang sudah ada
+
+```yaml
+# pubspec.yaml
+version: 1.0.0+1   # 1.0.0 = versionName, +1 = versionCode
+```
+
+Setelah rilis pertama: `1.0.0+1`
+Bug fix: `1.0.1+2`
+Fitur baru: `1.1.0+3`
+
+## iOS Deployment
+
+### 1. Apple Developer Program ($99/tahun)
+
+Bergabung dengan Apple Developer Program:
+1. Buka [developer.apple.com](https://developer.apple.com)
+2. Enroll dengan Apple ID
+3. Bayar $99 USD per tahun (auto-renew)
+
+Tanpa membership, Anda tidak bisa:
+- Build untuk distribution (Archive)
+- Upload ke App Store Connect
+- TestFlight (external testers)
+- Push notification
+- In-app purchase
+
+### 2. Xcode Certificate dan Provisioning Profile
+
+```bash
+# Buka Xcode project
+open ios/Runner.xcworkspace
+```
+
+**Certificate types (Signing & Capabilities > All > Certificate):**
+- **Development certificate**: Digunakan saat develop di device (debug)
+- **Distribution certificate**: Digunakan saat build untuk App Store (App Store Connect) atau ad-hoc distribution
+
+**Provisioning profiles:**
+- Menghubungkan certificate + App ID + device (untuk development)
+- Xcode manage secara otomatis dengan **Automatically manage signing**
+
+**Setting signing di Xcode:**
+1. Buka `ios/Runner.xcworkspace` di Xcode
+2. Pilih target Runner > Signing & Capabilities
+3. Centang "Automatically manage signing"
+4. Pilih team (Apple Developer account)
+5. Xcode akan generate certificate dan provisioning profile secara otomatis
+
+**Bundle identifier** harus unik dan konsisten dengan App Store Connect:
+```
+com.yourcompany.yourapp
+```
+
+### 3. Build dan Archive
+
+```bash
+# Bersihkan build cache (sering diperlukan untuk menghindari error aneh)
+flutter clean
+cd ios && pod deintegrate && pod install --repo-update && cd ..
+
+# Build untuk iOS (debug — testing di simulator)
+flutter run
+
+# Build untuk release (archive)
+flutter build ios --release --no-codesign
+
+# Archive via Xcode
+# Buka ios/Runner.xcworkspace di Xcode
+# Product > Archive
+```
+
+**Jika error "No matching provisioning profiles":**
+1. Buka Xcode
+2. Preferences > Accounts > Download Manual Profiles
+3. Atau hapus provisioning profiles lama di `~/Library/MobileDevice/Provisioning Profiles/`
+
+### 4. App Store Connect
+
+Setelah archive berhasil, Xcode akan membuka organizer:
+
+1. Pilih archive terbaru
+2. Click **Distribute App**
+3. Pilih **App Store Connect** (distribution method)
+4. Pilih **Upload** (kirim ke App Store Connect)
+5. Pilih signing yang sesuai
+6. Setelah upload, buka [App Store Connect](https://appstoreconnect.apple.com)
+
+**App Store Connect tasks:**
+- **App Information**: Nama app, bundle ID, SKU, primary language
+- **Pricing**: Price tier, availability (paid/free), in-app purchases
+- **App Review Information**: Contact info, demo account jika perlu login
+- **Build**: Pilih build yang sudah di-upload dari Xcode
+- **App Privacy**: Privacy policy URL, data collection disclosure
+- **Version Release**: Manual release atau auto release after review
+
+### 5. TestFlight
+
+TestFlight adalah platform beta testing Apple:
+
+```bash
+# Setelah upload build ke App Store Connect:
+# 1. Buka TestFlight tab di App Store Connect
+# 2. Build akan "Processing" (butuh ~30 menit)
+# 3. Setelah selesai, enable untuk testing
+```
+
+**Internal Testers:**
+- Hingga 100 members dari App Store Connect team
+- Tidak perlu review dari Apple
+- Langsung bisa install via TestFlight app
+
+**External Testers:**
+- Hingga 10.000 testers
+- Butuh **Beta App Review** dari Apple (1-2 hari)
+- Link undangan bisa dishare ke publik
+
+```dart
+// opsional: Tampilkan dialog untuk join TestFlight
+import 'package:url_launcher/url_launcher.dart';
+
+Future<void> openTestFlight(String appStoreId) async {
+  final testflightUrl = 'itms-beta://testflight.apple.com/join/$appStoreId';
+  final canOpen = await canLaunchUrl(Uri.parse(testflightUrl));
+
+  if (canOpen) {
+    await launchUrl(Uri.parse(testflightUrl));
+  }
+}
+```
+
+### 6. iOS App Icon
+
+```bash
+# Generate icon via flutter_launcher_icons (pubspec.yaml)
+flutter pub add flutter_launcher_icons --dev
+```
+
+```yaml
+# pubspec.yaml tambahan
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app-icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  min_sdk_android: 21
+```
+
+```bash
+# Generate icon
+flutter pub run flutter_launcher_icons
+```
+
+**iOS icon requirements:**
+- File PNG, minimal 1024x1024 pixel (App Store)
+- Square, no rounded corners (Apple menambahkan sendiri)
+- No transparency
+- App Store icon: 1024pt (1024x1024 pixel)
+
+### 7. App Store Screenshots
+
+App Store membutuhkan screenshots untuk setiap device size:
+
+| Device | Resolution | Required |
+|--------|-----------|----------|
+| iPhone 6.5" (iPhone 14 Pro Max) | 1290 x 2796 | Wajib |
+| iPhone 5.5" (iPhone 8 Plus) | 1242 x 2208 | Optional |
+| iPad Pro 12.9" | 2048 x 2732 | Jika support iPad |
+| iPad Pro 11" | 1668 x 2388 | Jika support iPad |
+
+**Jumlah screenshots:** Minimal 1 per device, rekomendasi 4-6 per device.
+
+**Tools untuk generate screenshots:**
+- [App Screenshot Builder](https://appscreens.com)
+- [Fastlane snapshot](https://docs.fastlane.tools/actions/snapshot/) — automate screenshot generation
+- [Dartpad Screenshot](https://github.com/AppPear/Flutter-Screenshot-Generator)
+
+## App Flavors
+
+App flavors memungkinkan Anda memiliki **multiple environment (dev, staging, prod)** dalam satu codebase.
+
+### Setup Flavor di Flutter
+
+```bash
+# Run dengan flavor tertentu
+flutter run --flavor dev -t lib/main_dev.dart
+flutter run --flavor staging -t lib/main_staging.dart
+flutter run --flavor prod -t lib/main.dart
+
+# Build dengan flavor
+flutter build appbundle --flavor dev -t lib/main_dev.dart
+flutter build ios --flavor dev -t lib/main_dev.dart --no-codesign
+```
+
+### Entry Points
+
+```dart
+// lib/main_dev.dart
+import 'package:flutter/material.dart';
+import 'app.dart';
+
+void main() {
+  // Konfigurasi development environment
+  FlavorConfig(
+    appName: 'MyApp Dev',
+    baseUrl: 'https://dev.api.example.com',
+    isProduction: false,
+    enableLogging: true,
+  );
+
+  runApp(const MyApp());
+}
+```
+
+```dart
+// lib/main_staging.dart
+import 'package:flutter/material.dart';
+import 'app.dart';
+
+void main() {
+  FlavorConfig(
+    appName: 'MyApp Staging',
+    baseUrl: 'https://staging.api.example.com',
+    isProduction: false,
+    enableLogging: true,
+  );
+
+  runApp(const MyApp());
+}
+```
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'app.dart';
+
+void main() {
+  FlavorConfig(
+    appName: 'MyApp',
+    baseUrl: 'https://api.example.com',
+    isProduction: true,
+    enableLogging: false,
+  );
+
+  runApp(const MyApp());
+}
+```
+
+### Flavor Configuration Class
+
+```dart
+// lib/core/config/flavor_config.dart
+class FlavorConfig {
+  static late final FlavorConfig instance;
+
+  final String appName;
+  final String baseUrl;
+  final bool isProduction;
+  final bool enableLogging;
+
+  FlavorConfig._({
+    required this.appName,
+    required this.baseUrl,
+    required this.isProduction,
+    required this.enableLogging,
+  });
+
+  factory FlavorConfig({
+    required String appName,
+    required String baseUrl,
+    required bool isProduction,
+    required bool enableLogging,
+  }) {
+    instance = FlavorConfig._(
+      appName: appName,
+      baseUrl: baseUrl,
+      isProduction: isProduction,
+      enableLogging: enableLogging,
+    );
+    return instance;
+  }
+}
+```
+
+### Android Flavor Config
+
+```gradle
+// android/app/build.gradle
+android {
+    // ... konfigurasi default
+
+    flavorDimensions "environment"
+    productFlavors {
+        dev {
+            dimension "environment"
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+            resValue "string", "app_name", "MyApp Dev"
+        }
+        staging {
+            dimension "environment"
+            applicationIdSuffix ".staging"
+            versionNameSuffix "-staging"
+            resValue "string", "app_name", "MyApp Staging"
+        }
+        prod {
+            dimension "environment"
+            applicationIdSuffix ""
+            versionNameSuffix ""
+            resValue "string", "app_name", "MyApp"
+        }
+    }
+
+    sourceSets {
+        // Source set untuk setiap flavor
+        dev {
+            manifest.srcFile 'src/dev/AndroidManifest.xml'
+        }
+        staging {
+            manifest.srcFile 'src/staging/AndroidManifest.xml'
+        }
+        prod {
+            manifest.srcFile 'src/prod/AndroidManifest.xml'
+        }
+    }
+}
+```
+
+### iOS Flavor Config
+
+Di Xcode:
+1. Duplicate target Runner menjadi:
+   - Runner Dev
+   - Runner Staging
+   - Runner (production)
+2. Set bundle identifier untuk masing-masing:
+   - `com.yourcompany.yourapp.dev`
+   - `com.yourcompany.yourapp.staging`
+   - `com.yourcompany.yourapp`
+3. Set Product Bundle Name (app name yang tampil di Home screen)
+4. Buat scheme baru untuk setiap flavor
+
+Atau gunakan package [flutter_flavorizr](https://pub.dev/packages/flutter_flavorizr) untuk mengotomatiskan setup flavor.
+
+## CI/CD dengan GitHub Actions
+
+### Flutter CI Pipeline
+
+```yaml
+# .github/workflows/flutter-ci.yml
+name: Flutter CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+  test:
+    name: Test
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run unit & widget tests
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+
+  build-android:
+    name: Build Android
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Setup Android keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+
+      - name: Build AAB
+        run: |
+          flutter build appbundle --release \
+            --obfuscate \
+            --split-debug-info=build/debug-info
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  build-ios:
+    name: Build iOS
+    needs: test
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload iOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: build/ios/iphoneos/Runner.app
+```
+
+### GitHub Secrets Setup
+
+Di repository Settings > Secrets and variables > Actions:
+
+| Secret | Deskripsi |
+|--------|-----------|
+| `KEYSTORE_BASE64` | Keystore file di-encode base64 (`base64 ~/upload-keystore.jks`) |
+| `KEYSTORE_PASSWORD` | Password keystore |
+| `KEY_PASSWORD` | Password key alias |
+| `KEY_ALIAS` | Nama key alias |
+
+### Deploy ke Play Store via GitHub Actions (dengan r0adkll/upload-google-play)
+
+```yaml
+# Tambahan job di flutter-ci.yml
+deploy-android:
+  name: Deploy Android
+  needs: test
+  runs-on: ubuntu-latest
+  if: github.ref == 'refs/heads/main'
+
+  steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.x'
+    - run: flutter pub get
+
+    # Setup keystore dan build (sama seperti di atas)
+
+    - name: Deploy to Play Store
+      uses: r0adkll/upload-google-play@v1
+      with:
+        serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+        packageName: com.yourcompany.yourapp
+        releaseFiles: build/app/outputs/bundle/release/app-release.aab
+        track: internal  # Ganti ke production setelah verified
+        status: completed
+        inAppUpdatePriority: 2
+        whatsNewDirectory: release-notes/
+```
+
+## CI/CD dengan Codemagic
+
+Codemagic adalah CI/CD service khusus Flutter (oleh Nevercode).
+
+### codemagic.yaml
+
+```yaml
+# codemagic.yaml
+workflows:
+  android-workflow:
+    name: Android Build & Deploy
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - android_credentials
+    scripts:
+      - name: Get dependencies
+        script: flutter pub get
+      - name: Run tests
+        script: flutter test
+      - name: Build AAB
+        script: |
+          flutter build appbundle --release \
+            --obfuscate \
+            --split-debug-info=build/debug-info
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/**/outputs/**/mapping.txt
+      - flutter_drive.log
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+        track: internal
+        submit_as: draft
+        in_app_update_priority: 2
+
+  ios-workflow:
+    name: iOS Build & Deploy
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - ios_credentials
+    scripts:
+      - name: Get dependencies
+        script: flutter pub get
+      - name: Install pods
+        script: cd ios && pod install
+      - name: Build IPA
+        script: flutter build ios --release --no-codesign
+      - name: Archive & Export IPA
+        script: |
+          xcode-project build-ipa \
+            --project ios/Runner.xcodeproj \
+            --scheme Runner
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: api_key
+        api_key_id: $APP_STORE_API_KEY_ID
+        issuer_id: $APP_STORE_ISSUER_ID
+        key: $APP_STORE_API_KEY
+        submit_to_testflight: true
+```
+
+## Fastlane
+
+Fastlane adalah automation tool untuk iOS dan Android build/deploy.
+
+### Setup Fastlane
+
+```bash
+# Install Fastlane
+sudo gem install fastlane -NV
+
+# Init di project
+cd ios
+fastlane init
+
+# Atau untuk Android
+cd android
+fastlane init
+```
+
+### Android Fastfile
+
+```ruby
+# android/fastlane/Fastfile
+default_platform(:android)
+
+platform :android do
+  desc "Build and deploy to Google Play Internal Testing"
+  lane :beta do
+    # Increment build number
+    increment_version_code(
+      gradle_file_path: "app/build.gradle"
+    )
+
+    # Build AAB
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      print_command: true,
+      properties: {
+        "android.injected.signing.store.file" => ENV["STORE_FILE"],
+        "android.injected.signing.store.password" => ENV["STORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"],
+      }
+    )
+
+    # Upload ke Internal Testing
+    upload_to_google_play(
+      track: "internal",
+      release_status: "completed",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Deploy to Google Play Production"
+  lane :deploy do
+    # Get latest version from changelog
+    version = get_current_version_name
+
+    # Build AAB with obfuscation
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+    )
+
+    # Upload to Production
+    upload_to_google_play(
+      track: "production",
+      release_status: "completed",
+      version_code: version,
+    )
+  end
+end
+```
+
+### iOS Fastfile
+
+```ruby
+# ios/fastlane/Fastfile
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    # Increment build number
+    increment_build_number(
+      build_number: latest_testflight_build_number + 1
+    )
+
+    # Build and archive
+    build_app(
+      scheme: "Runner",
+      export_method: "app-store"
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Deploy to App Store"
+  lane :deploy do
+    build_app(
+      scheme: "Runner",
+      export_method: "app-store"
+    )
+
+    upload_to_app_store(
+      skip_metadata: true,
+      skip_screenshots: true,
+      force: true
+    )
+  end
+end
+```
+
+### Appfile
+
+```ruby
+# ios/fastlane/Appfile
+app_identifier("com.yourcompany.yourapp")
+apple_id("your-apple-id@example.com")
+team_id("APPLE_TEAM_ID_MEMBER")
+itc_team_id("APPLE_TEAM_ID_ADMIN")
+
+# android/fastlane/Appfile
+package_name("com.yourcompany.yourapp")
+json_key_file("path/to/your/service-account.json")
+```
+
+## Versioning
+
+### Version Strategy di pubspec.yaml
+
+```yaml
+version: 1.2.3+45
+#         ^   ^
+#         |   +-- versionCode / buildNumber (integer, increment setiap build)
+#         +------ versionName (SemVer: major.minor.patch)
+```
+
+### Semantic Versioning
+
+| Version | Change | Contoh |
+|---------|--------|--------|
+| **Major** | Breaking change | 2.0.0 (redesign total) |
+| **Minor** | Feature baru, backward compatible | 1.3.0 (tambah filter) |
+| **Patch** | Bug fix, performance | 1.2.4 (fix crash login) |
+
+### Automate Version Increment
+
+```dart
+// lib/core/config/app_version.dart
+import 'package:package_info_plus/package_info_plus.dart';
+
+class AppVersion {
+  static Future<AppVersionInfo> getInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    return AppVersionInfo(
+      appName: info.appName,
+      packageName: info.packageName,
+      version: info.version,
+      buildNumber: info.buildNumber,
+    );
+  }
+}
+
+class AppVersionInfo {
+  final String appName;
+  final String packageName;
+  final String version;
+  final String buildNumber;
+
+  const AppVersionInfo({
+    required this.appName,
+    required this.packageName,
+    required this.version,
+    required this.buildNumber,
+  });
+
+  String get displayString => '$version+$buildNumber';
+}
+```
+
+## Changelog
+
+```markdown
+# CHANGELOG.md
+
+## [1.2.0] - 2025-06-15
+
+### Added
+- Fitur pencarian dengan filter kategori
+- Dark mode support
+- Animasi transisi halaman detail
+
+### Changed
+- Upgrade Flutter 3.16 → 3.22
+- Optimasi performa daftar produk (lazy loading)
+- Redesign halaman profil
+
+### Fixed
+- Crash saat login dengan akun Google tertentu
+- Text overflow di halaman checkout
+- Notifikasi tidak muncul di Android 14
+
+### Security
+- Update dependency rentan (CVE-2025-1234)
+- Enforce HTTPS untuk semua API call
+
+## [1.1.0] - 2025-05-01
+
+### Added
+- Integrasi payment gateway
+- Fitur wishlist
+- Share produk ke sosial media
+
+### Fixed
+- Bug double tap di tombol submit
+- Keyboard遮挡 input field di iOS
+
+## [1.0.0] - 2025-04-01
+
+### Added
+- Rilis perdana
+- Login/Register dengan email dan Google
+- Browse produk dengan kategori
+- Keranjang belanja
+- Checkout
+- Riwayat pesanan
+- Profil pengguna
+```
+
+## Pre-Deployment Checklist
+
+### Checklist Wajib
+
+- [ ] `flutter analyze` — zero errors, zero warnings
+- [ ] `flutter test` — semua test passing
+- [ ] Manual regression test di real device (bukan emulator)
+- [ ] Test di minimum supported OS (Android 6/iOS 15)
+- [ ] Build dengan `--obfuscate --split-debug-info`
+- [ ] Version number sudah di-update
+- [ ] Changelog sudah di-update
+- [ ] App icon dan splash screen sudah benar
+- [ ] Deep links berfungsi (jika ada)
+- [ ] Push notification berfungsi
+
+### Checklist iOS
+
+- [ ] App Store Connect record sudah dibuat
+- [ ] Privacy policy URL sudah diisi
+- [ ] App review contact info valid
+- [ ] Demo account disediakan (jika perlu login)
+- [ ] All required screenshots sudah diupload
+- [ ] App description dan keywords sudah final
+- [ ] Pricing sudah diset
+- [ ] Build sudah di-archive dan di-upload
+
+### Checklist Android
+
+- [ ] Google Play Console listing sudah lengkap
+- [ ] Content rating sudah diisi
+- [ ] App signing key sudah terdaftar
+- [ ] Testing track sudah dipilih (jangan langsung production)
+- [ ] In-app products / subscription sudah di-setup (jika ada)
+
+### Production Optimization Checklist
+
+- [ ] Obfuscation enabled (`--obfuscate --split-debug-info`)
+- [ ] Crash reporting terintegrasi (Firebase Crashlytics / Sentry)
+- [ ] Analytics terintegrasi (Firebase Analytics / Mixpanel)
+- [ ] Performance monitoring (Firebase Performance)
+- [ ] Error handling untuk semua network calls
+- [ ] Network timeout configuration (connectTimeout, receiveTimeout)
+- [ ] Pagination / lazy loading untuk list data
+- [ ] Image caching (cached_network_image)
+- [ ] Memory management — dispose controllers, streams, listeners
+- [ ] App size optimization
+- [ ] Remove debugPrint / log statements
+- [ ] Disable debug mode di production
+
+```yaml
+# pubspec.yaml — pastikan dependency production sudah benar
+dependencies:
+  # WAJIB di production
+  firebase_crashlytics: ^3.0.0
+  firebase_analytics: ^10.0.0
+  sentry_flutter: ^7.0.0
+
+dev_dependencies:
+  # HANYA untuk development
+  flutter_lints: ^3.0.0
+  mocktail: ^1.0.0
+  flutter_launcher_icons: ^0.13.0
+```
+
+### Check Flutter Doctor
+
+Sebelum build production, jalankan:
+
+```bash
+flutter doctor -v
+```
+
+Pastikan tidak ada issue:
+```
+[✓] Flutter (Channel stable, 3.16.0, on macOS 14.0)
+[✓] Android toolchain (Android SDK version 34.0.0)
+[✓] Xcode (16.0)
+[✓] Chrome (web development)
+[✓] Android Studio
+[✓] VS Code
+[✓] Connected device (1 available)
+```
+
+## Common Mistakes di Deployment
+
+### 1. Lupa Update Version Code
+
+Build gagal di Play Store karena version code sudah ada. Solusi: Otomatiskan dengan Fastlane.
+
+### 2. Keystore Hilang
+
+Keystore hilang = tidak bisa update app. Satu-satunya solusi: buat app baru dengan package name baru.
+
+**Pencegahan:** Backup keystore ke Google Drive / password manager. Gunakan Google Play App Signing.
+
+### 3. iOS Archive Error karena CocoaPods
+
+```bash
+# Error umum: "Flutter.podspec" not found
+flutter clean
+cd ios
+pod deintegrate
+pod install --repo-update
+cd ..
+flutter build ios --release
+```
+
+### 4. Build Number Tidak Sinkron
+
+Version code di pubspec.yaml, Android build.gradle, dan iOS Info.plist harus sinkron. Fastlane `increment_version_code` otomatis menangani ini.
+
+### 5. Mengabaikan Obfuscation
+
+Tanpa obfuscation, kode Dart bisa di-reverse engineer dengan mudah. Selalu enable:
+
+```bash
+flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info
+```
+
+**Catatan:** Simpan debug-info file! File ini diperlukan untuk deobfuscate crash stacktrace. Simpan di release artifact.
+
+## Selesai! Apa Selanjutnya?
+
+Deployment adalah langkah terakhir dari siklus development, tapi bukan akhir dari perjalanan. Setelah aplikasi di production:
+
+- **Monitoring**: Pantau crash rate, ANR rate, dan user engagement
+- **A/B Testing**: Uji fitur baru dengan percentage rollout
+- **Feature Flags**: Kendalikan fitur tanpa perlu rilis baru
+- **Hotfix Strategy**: Fastlane lane untuk emergency fix
+- **Performance Monitoring**: Firebase Performance atau Datadog untuk melacak slow frames, network latency
+- **User Feedback**: Integrasi in-app review, feedback form
+- **Continuous Improvement**: Analisis data analytics untuk menentukan fitur selanjutnya
+
+Selamat! Anda telah menyelesaikan tutorial Flutter Advanced. Kode Anda sekarang terarsitektur dengan baik, teruji, dan siap production. Perjalanan belajar Flutter tidak berhenti di sini — terus eksplorasi, terus build, dan terus shipping.

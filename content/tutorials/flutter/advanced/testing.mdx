@@ -1,0 +1,1296 @@
+---
+title: Testing
+description: Pelajari testing di Flutter — unit test, widget test, integration test, mocking dengan mocktail, golden tests, dan strategi test coverage.
+---
+
+# Testing Flutter: Dari Unit ke Integration
+
+## Pengantar
+
+Developer yang baik menulis kode. Developer profesional menulis test. Testing bukan aktivitas opsional — ini adalah investasi yang membayar dividen setiap kali Anda melakukan refactor, upgrade dependency, atau menambah fitur. Tanpa test, setiap perubahan adalah lompatan kepercayaan.
+
+### Testing Pyramid
+
+```
+          /\
+         /  \
+        / I  \        Integration Tests
+       / T    \       (end-to-end, full app)
+      / E      \
+     /----------\
+    / Widget     \   Widget Tests
+   /   Tests      \  (single widget, component)
+  /----------------\
+ /   Unit Tests     \  Unit Tests
+/     (function,      \ (logic, model, use case,
+\    repository, bloc)  \ repository, utility)
+ \--------------------/
+```
+
+- **Unit Tests**: Cepat ($\sim$1ms), banyak ($\sim$70% dari total test), no UI
+- **Widget Tests**: Sedang ($\sim$100ms), secukupnya ($\sim$20%), UI component
+- **Integration Tests**: Lambat ($\sim$10s), sedikit ($\sim$10%), full app flow
+
+**Aturan praktis:** Semakin ke atas pyramid, semakin lambat, semakin mahal maintenance, dan semakin sedikit jumlahnya.
+
+### Kenapa Testing Sering Dilewati?
+
+1. **"Nanti aja"** — Tidak pernah ada waktu untuk test belakangan. Test harus ditulis bersamaan dengan kode.
+2. **"Aplikasi saya sederhana"** — Aplikasi sederhana hari ini bisa menjadi kompleks bulan depan.
+3. **"Too much boilerplate"** — Ini masalah tooling, bukan testing. Mocktail dan Riverpod test utilities sangat mengurangi boilerplate.
+4. **"Deadline ketat"** — Test justru menyelamatkan waktu di regression. Bug yang tertangkap test jauh lebih murah daripada bug di production.
+
+## Setup Testing di Flutter
+
+### pubspec.yaml
+
+```yaml
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Mocking
+  mocktail: ^1.0.0
+
+  # Untuk golden test
+  # golden_toolkit: ^0.15.0
+
+  # Untuk integration test
+  integration_test:
+    sdk: flutter
+```
+
+### Struktur Folder Test
+
+```
+test/
+  unit/
+    models/
+      user_test.dart
+    usecases/
+      get_user_usecase_test.dart
+    repositories/
+      user_repository_impl_test.dart
+    bloc/
+      user_bloc_test.dart
+
+  widget/
+    screens/
+      login_screen_test.dart
+    widgets/
+      login_form_test.dart
+
+  integration/
+    app_test.dart
+
+  test_helpers/
+    mocks.dart
+    test_data.dart
+```
+
+## Unit Test
+
+Unit test menguji satu unit kode secara independen — function, class, atau method — tanpa Flutter framework.
+
+### Anatomi Unit Test
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  // setUp — dijalankan sebelum setiap test
+  setUp(() {
+    // Inisialisasi dependency, reset mock
+  });
+
+  // tearDown — dijalankan setelah setiap test
+  tearDown(() {
+    // Cleanup resources
+  });
+
+  group('Calculator.divide', () {
+    test('should return quotient when dividing two positive integers', () {
+      // Arrange
+      final calculator = Calculator();
+
+      // Act
+      final result = calculator.divide(10, 2);
+
+      // Assert
+      expect(result, equals(5.0));
+    });
+  });
+}
+```
+
+### Matchers Penting
+
+```dart
+// Equality
+expect(result, equals(expectedValue));
+expect(result, isNull);
+expect(result, isNotNull);
+
+// Type checking
+expect(result, isA<Exception>());
+expect(result, isA<User>());
+
+// Collections
+expect(list, hasLength(3));
+expect(list, contains('item'));
+expect(list, everyElement(isA<int>()));
+
+// Exceptions
+expect(() => calculator.divide(1, 0), throwsA(isA<DivisionByZeroException>()));
+
+// Boolean
+expect(condition, isTrue);
+expect(condition, isFalse);
+
+// String
+expect(name, startsWith('Flutter'));
+expect(name, contains('test'));
+expect(description, isNotEmpty);
+```
+
+**Best practice:** `equals` untuk value equality. Jangan pakai `equals` untuk object yang belum override `==` — gunakan `isA` atau properti spesifik.
+
+### setUp dan setUpAll
+
+```dart
+void main() {
+  late Database database;
+
+  setUpAll(() {
+    // Di run sekali sebelum semua test
+    // Cocok untuk inisialisasi berat: database connection, API client
+    database = Database.open('test.db');
+  });
+
+  setUp(() {
+    // Di run sebelum setiap test
+    // Cocok untuk reset state, insert seed data
+    database.clear();
+    database.insert(seedData);
+  });
+
+  tearDown(() {
+    // Di run setelah setiap test
+    // Cocok untuk cleanup yang harus selalu jalan
+  });
+
+  tearDownAll(() {
+    // Di run sekali setelah semua test selesai
+    database.close();
+  });
+
+  test('should find user by email', () {
+    final user = database.findByEmail('test@example.com');
+    expect(user, isNotNull);
+  });
+}
+```
+
+**Penting:** `setUp` dan `setUpAll` tidak bisa dipanggil di dalam `group`. Mereka harus di `main` level.
+
+### Testing Async Code
+
+```dart
+test('should fetch user data asynchronously', () async {
+  // Arrange
+  final repository = MockUserRepository();
+  when(() => repository.getUser('123'))
+      .thenAnswer((_) async => testUser);
+
+  // Act
+  final user = await repository.getUser('123');
+
+  // Assert
+  expect(user, equals(testUser));
+});
+
+test('should complete within timeout', () async {
+  final result = await Future.delayed(
+    const Duration(milliseconds: 100),
+    () => 'Done',
+  ).timeout(const Duration(seconds: 1));
+
+  expect(result, 'Done');
+});
+```
+
+**Gunakan `thenAnswer` untuk Future**, bukan `thenReturn`. `thenReturn` untuk synchronous value. `thenAnswer` untuk async computation. Jika mock method mengembalikan `Future`, pakai `thenAnswer`.
+
+## Mocking dengan Mocktail
+
+Mocktail adalah mocking library yang tidak memerlukan code generation. Ini yang membedakannya dari Mockito — Mocktail bekerja langsung tanpa `build_runner`.
+
+### Cara Kerja Mocktail
+
+```
+Real Object → dibungkus → Mock Object
+                           ├── when(() => mock.method()).thenReturn(value)
+                           ├── thenAnswer((invocation) => asyncValue)
+                           ├── thenThrow(exception)
+                           └── verify(() => mock.method()).called(1)
+```
+
+### Setup Mock
+
+```dart
+// test/test_helpers/mocks.dart
+import 'package:mocktail/mocktail.dart';
+
+class MockUserRepository extends Mock implements UserRepository {}
+class MockAuthRemoteDataSource extends Mock implements AuthRemoteDataSource {}
+class MockHttpClient extends Mock implements http.Client {}
+```
+
+**PENTING:** `Mock` class harus dibuat untuk interface (abstract class), bukan untuk concrete class. Mocking concrete class bisa menyebabkan unexpected behavior karena method concrete tetap dijalankan.
+
+### when() dan thenReturn / thenAnswer
+
+```dart
+void main() {
+  late MockUserRepository repository;
+
+  setUp(() {
+    repository = MockUserRepository();
+  });
+
+  group('GetUserUseCase', () {
+    test('should return user from repository', () async {
+      // Arrange: setup mock behavior
+      when(() => repository.getUser('123'))
+          .thenAnswer((_) async => testUser);
+
+      // Act
+      final useCase = GetUserUseCase(repository: repository);
+      final result = await useCase('123');
+
+      // Assert
+      expect(result, equals(testUser));
+    });
+
+    test('should throw when repository fails', () async {
+      // Arrange: setup mock to throw
+      when(() => repository.getUser(any()))
+          .thenThrow(ServerException('Server error'));
+
+      // Act + Assert
+      final useCase = GetUserUseCase(repository: repository);
+      expect(
+        () => useCase('123'),
+        throwsA(isA<ServerException>()),
+      );
+    });
+  });
+}
+```
+
+**`any()` vs specific value:**
+- `any()` — match parameter apapun. Gunakan dengan hati-hati karena bisa masking bug.
+- `specific value` — match parameter spesifik. Lebih strict, lebih aman.
+- Keduanya bisa dipakai di parameter position yang berbeda: `when(() => mock.method('fixed', any()))`
+
+### verify()
+
+```dart
+test('should call repository.getUser once', () async {
+  when(() => repository.getUser('123'))
+      .thenAnswer((_) async => testUser);
+
+  final useCase = GetUserUseCase(repository: repository);
+  await useCase('123');
+
+  // Verify method dipanggil
+  verify(() => repository.getUser('123')).called(1);
+});
+
+test('should not call repository when cached', () async {
+  when(() => cacheRepository.getUser('123'))
+      .thenAnswer((_) async => testUser);
+
+  final useCase = GetUserWithCacheUseCase(
+    repository: repository,
+    cache: cacheRepository,
+  );
+  await useCase('123');
+
+  // Remote repository tidak boleh dipanggil karena sudah ada cache
+  verifyNever(() => repository.getUser('123'));
+});
+
+test('should call repository with correct parameters', () async {
+  when(() => repository.getUser(any()))
+      .thenAnswer((_) async => testUser);
+
+  final useCase = GetUserUseCase(repository: repository);
+  await useCase('456');
+
+  verify(() => repository.getUser('456')).called(1);
+  // Jika ada parameter salah, verify akan fail
+});
+```
+
+### Argument Matchers
+
+```dart
+// any() — match semua nilai
+when(() => repository.search(any())).thenAnswer((_) async => []);
+
+// any(named: 'paramName') — untuk named parameter
+when(() => authRepository.login(
+  email: any(named: 'email'),
+  password: any(named: 'password'),
+)).thenAnswer((_) async => testUser);
+
+// capture() — tangkap argument untuk diinspeksi
+test('should pass transformed data to repository', () async {
+  when(() => repository.saveUser(any())).thenAnswer((_) async => {});
+
+  final useCase = CreateUserUseCase(repository: repository);
+  await useCase(name: 'John', email: 'john@test.com');
+
+  final captured = verify(() => repository.saveUser(capture(any())))
+      .captured
+      .single as User;
+
+  expect(captured.name, 'John');
+  expect(captured.email, 'john@test.com');
+});
+```
+
+### Reset Mock
+
+```dart
+void main() {
+  late MockUserRepository repository;
+
+  setUp(() {
+    repository = MockUserRepository();
+  });
+
+  // Tidak perlu reset manual — setUp membuat instance baru setiap test
+
+  group('test suite', () {
+    test('test 1', () {
+      when(() => repository.getUser('1')).thenAnswer((_) async => user1);
+      // ...
+    });
+
+    test('test 2', () {
+      // repository fresh, perlu setup ulang
+      when(() => repository.getUser('2')).thenAnswer((_) async => user2);
+      // ...
+    });
+  });
+}
+```
+
+Jika terpaksa menggunakan shared mock instance (misalnya integration test), pakai `reset(mockInstance)`:
+
+```dart
+tearDown(() {
+  reset(repository); // Hapus semua when() dan verify() history
+});
+```
+
+## Unit Test Examples Lengkap
+
+### Testing Use Case dengan Mock Repository
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:faker/faker.dart';
+
+void main() {
+  late MockUserRepository repository;
+  late GetUserUseCase useCase;
+
+  setUp(() {
+    repository = MockUserRepository();
+    useCase = GetUserUseCase(repository: repository);
+  });
+
+  group('GetUserUseCase', () {
+    test('should return user when repository returns user', () async {
+      // Arrange
+      final expectedUser = User(
+        id: faker.guid.guid(),
+        name: faker.person.name(),
+        email: faker.internet.email(),
+      );
+      when(() => repository.getUser(expectedUser.id))
+          .thenAnswer((_) async => expectedUser);
+
+      // Act
+      final result = await useCase(GetUserParams(userId: expectedUser.id));
+
+      // Assert
+      expect(result.id, expectedUser.id);
+      expect(result.name, expectedUser.name);
+      expect(result.email, expectedUser.email);
+    });
+
+    test('should throw UserNotFoundException when repository returns null', () async {
+      // Arrange
+      when(() => repository.getUser('nonexistent'))
+          .thenAnswer((_) async => null);
+
+      // Act + Assert
+      expect(
+        () => useCase(GetUserParams(userId: 'nonexistent')),
+        throwsA(isA<UserNotFoundException>()),
+      );
+    });
+
+    test('should propagate repository exception', () async {
+      // Arrange
+      when(() => repository.getUser(any()))
+          .thenThrow(ServerException('Connection timeout'));
+
+      // Act + Assert
+      expect(
+        () => useCase(GetUserParams(userId: '123')),
+        throwsA(isA<ServerException>()),
+      );
+    });
+
+    test('should call repository with correct userId', () async {
+      // Arrange
+      when(() => repository.getUser('specific-id'))
+          .thenAnswer((_) async => testUser);
+
+      // Act
+      await useCase(GetUserParams(userId: 'specific-id'));
+
+      // Verify
+      verify(() => repository.getUser('specific-id')).called(1);
+    });
+  });
+}
+```
+
+### Testing Repository dengan Mock Data Sources
+
+```dart
+void main() {
+  late MockRemoteDataSource remote;
+  late MockLocalDataSource local;
+  late UserRepositoryImpl repository;
+
+  setUp(() {
+    remote = MockRemoteDataSource();
+    local = MockLocalDataSource();
+    repository = UserRepositoryImpl(remote: remote, local: local);
+  });
+
+  group('getUser', () {
+    test('should return entity from remote DTO', () async {
+      // Arrange
+      when(() => remote.getUser('1'))
+          .thenAnswer((_) async => testUserDto);
+      when(() => local.cacheUser(any()))
+          .thenAnswer((_) async => {});
+
+      // Act
+      final result = await repository.getUser('1');
+
+      // Assert
+      expect(result, isA<User>());
+      expect(result!.id, testUserDto.id);
+      expect(result.name, testUserDto.name);
+      expect(result.email, testUserDto.emailAddress);
+    });
+
+    test('should cache remote data locally', () async {
+      // Arrange
+      when(() => remote.getUser('1'))
+          .thenAnswer((_) async => testUserDto);
+      when(() => local.cacheUser(any()))
+          .thenAnswer((_) async => {});
+
+      // Act
+      await repository.getUser('1');
+
+      // Assert DTO yang di-cache sesuai
+      verify(() => local.cacheUser(
+        any(that: isA<UserDto>()),
+      )).called(1);
+    });
+
+    test('should return cached data on network error', () async {
+      // Arrange
+      when(() => remote.getUser('1'))
+          .thenThrow(SocketException('No network'));
+      when(() => local.getCachedUser('1'))
+          .thenAnswer((_) async => testUserDto);
+
+      // Act
+      final result = await repository.getUser('1');
+
+      // Assert — fallback ke cache
+      expect(result, isNotNull);
+      expect(result!.id, testUserDto.id);
+    });
+
+    test('should return null when both remote and cache fail', () async {
+      // Arrange
+      when(() => remote.getUser('1'))
+          .thenThrow(SocketException('No network'));
+      when(() => local.getCachedUser('1'))
+          .thenAnswer((_) async => null);
+
+      // Act
+      final result = await repository.getUser('1');
+
+      // Assert
+      expect(result, isNull);
+    });
+  });
+}
+```
+
+### Testing BLoC
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bloc_test/bloc_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+void main() {
+  late MockGetUserUseCase mockGetUser;
+  late MockUpdateUserUseCase mockUpdateUser;
+  late UserBloc bloc;
+
+  setUp(() {
+    mockGetUser = MockGetUserUseCase();
+    mockUpdateUser = MockUpdateUserUseCase();
+    bloc = UserBloc(
+      getUserUseCase: mockGetUser,
+      updateUserUseCase: mockUpdateUser,
+    );
+  });
+
+  tearDown(() {
+    bloc.close();
+  });
+
+  group('UserBloc', () {
+    blocTest<UserBloc, UserState>(
+      'emits [Loading, Loaded] when LoadUserEvent succeeds',
+      build: () {
+        when(() => mockGetUser.call(any()))
+            .thenAnswer((_) async => testUser);
+        return bloc;
+      },
+      act: (bloc) => bloc.add(const LoadUserEvent(userId: '123')),
+      expect: () => [
+        isA<UserLoading>(),
+        isA<UserLoaded>(),
+      ],
+    );
+
+    blocTest<UserBloc, UserState>(
+      'emits [Loading, Error] when LoadUserEvent fails',
+      build: () {
+        when(() => mockGetUser.call(any()))
+            .thenThrow(UserNotFoundException('User not found'));
+        return bloc;
+      },
+      act: (bloc) => bloc.add(const LoadUserEvent(userId: '999')),
+      expect: () => [
+        isA<UserLoading>(),
+        isA<UserError>(),
+      ],
+    );
+
+    blocTest<UserBloc, UserState>(
+      'emits updated UserLoaded when UpdateUserNameEvent succeeds',
+      build: () {
+        when(() => mockGetUser.call(any()))
+            .thenAnswer((_) async => testUser);
+        when(() => mockUpdateUser.call(any()))
+            .thenAnswer((_) async => {});
+        return bloc;
+      },
+      seed: () => UserLoaded(user: testUser),
+      act: (bloc) => bloc.add(const UpdateUserNameEvent(newName: 'John Updated')),
+      expect: () => [
+        isA<UserLoaded>()
+            .having((state) => state.user.name, 'name', 'John Updated'),
+      ],
+    );
+  });
+}
+```
+
+**Package `bloc_test`** menyediakan `blocTest()` function yang sangat memudahkan testing BLoC. Tanpa `blocTest`, Anda harus manual emit dan listen ke stream.
+
+### edge case — Empty State, Null, Empty List
+
+```dart
+test('should return empty list when no users exist', () async {
+  when(() => userRepository.getAllUsers())
+      .thenAnswer((_) async => []);
+
+  final result = await getAllUsersUseCase.call();
+
+  expect(result, isEmpty);
+});
+
+test('should handle null createdAt gracefully', () {
+  final json = {'id': '1', 'name': 'Test', 'email': 'test@test.com'};
+  // createdAt tidak ada di JSON
+
+  // Harus punya default value atau throw dengan pesan jelas
+  expect(
+    () => UserDto.fromJson(json),
+    throwsA(isA<FormatException>()),
+  );
+});
+
+test('should handle malformed JSON gracefully', () {
+  final json = {'id': '1', 'name': null, 'email': true};
+  // Type mismatch
+
+  expect(
+    () => UserDto.fromJson(json as Map<String, dynamic>),
+    throwsA(isA<TypeError>()),
+  );
+});
+```
+
+## Widget Test
+
+Widget test menguji satu widget dalam lingkungan Flutter yang disimulasikan (test environment, bukan real device).
+
+### Anatomi Widget Test
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('Counter increments when button is pressed',
+      (WidgetTester tester) async {
+    // Arrange: build widget
+    await tester.pumpWidget(const MaterialApp(home: CounterScreen()));
+
+    // Verify initial state
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
+
+    // Act: tap increment button
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
+
+    // Assert: counter increased
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
+  });
+}
+```
+
+### Finder Methods
+
+```dart
+// By text
+find.text('Submit');
+find.textContaining('Sub'); // Partial match
+find.widgetWithText(TextField, 'Email'); // Specific widget type + text
+
+// By type
+find.byType(ElevatedButton);
+find.byType(TextField);
+find.byType(CircularProgressIndicator);
+
+// By key
+find.byKey(const Key('submit_button'));
+find.byValueKey('user_email_field');
+
+// By icon
+find.byIcon(Icons.add);
+
+// Multiple matchers
+find.descendant(
+  of: find.byType(Form),
+  matching: find.text('Error'),
+);
+```
+
+### pumpWidget, pump, pumpAndSettle
+
+```dart
+// pumpWidget — Build widget tree sekali
+await tester.pumpWidget(MyWidget());
+
+// pump — Rebuild dengan durasi tertentu (tanpa tick animation)
+await tester.pump(); // Rebuild 1 frame
+await tester.pump(const Duration(seconds: 1)); // Rebuild setelah durasi
+
+// pumpAndSettle — Rebuild terus sampai tidak ada animation/schedule
+await tester.pumpAndSettle(); // Tunggu semua animation selesai
+await tester.pumpAndSettle(const Duration(seconds: 5)); // Timeout 5 detik
+```
+
+**Perbedaan:**
+
+| Method | Fungsi | Kapan Pakai |
+|--------|--------|-------------|
+| `pumpWidget` | Build initial widget tree | Setup di awal test |
+| `pump()` | Rebuild satu frame | Setelah setState, event handler sinkron |
+| `pump(Duration)` | Majukan waktu + rebuild | Timer, delayed callbacks |
+| `pumpAndSettle()` | Rebuild sampai idle | Animasi, network request, async ops |
+
+**Common Mistake:** Lupa `pump()` setelah `tester.tap()`. Tanpa `pump()`, widget tidak di-rebuild dan state baru tidak terlihat.
+
+```dart
+// SALAH
+await tester.tap(find.text('Submit'));
+expect(find.text('Loading...'), findsOneWidget); // Gagal!
+
+// BENAR
+await tester.tap(find.text('Submit'));
+await tester.pump(); // Rebuild setelah tap
+expect(find.text('Loading...'), findsOneWidget);
+```
+
+### Widget Test: Counter App Lengkap
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+// Simple BLoC state
+class CounterCubit extends Cubit<int> {
+  CounterCubit() : super(0);
+
+  void increment() => emit(state + 1);
+  void decrement() => emit(state - 1);
+  void reset() => emit(0);
+}
+
+// Widget
+class CounterPage extends StatelessWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => CounterCubit(),
+      child: const _CounterView(),
+    );
+  }
+}
+
+class _CounterView extends StatelessWidget {
+  const _CounterView();
+
+  @override
+  Widget build(BuildContext context) {
+    final count = context.watch<CounterCubit>().state;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Counter')),
+      body: Center(child: Text('$count', key: const Key('count_text'))),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            key: const Key('increment'),
+            onPressed: () => context.read<CounterCubit>().increment(),
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            key: const Key('decrement'),
+            onPressed: () => context.read<CounterCubit>().decrement(),
+            child: const Icon(Icons.remove),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Test
+void main() {
+  testWidgets('counter starts at 0', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CounterPage()));
+    expect(find.text('0'), findsOneWidget);
+  });
+
+  testWidgets('increments counter on tap', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CounterPage()));
+
+    await tester.tap(find.byKey(const Key('increment')));
+    await tester.pump();
+
+    expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('decrements counter on tap', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CounterPage()));
+
+    await tester.tap(find.byKey(const Key('decrement')));
+    await tester.pump();
+
+    expect(find.text('-1'), findsOneWidget);
+  });
+
+  testWidgets('counter can go up and down', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CounterPage()));
+
+    // Increment 3x
+    await tester.tap(find.byKey(const Key('increment')));
+    await tester.tap(find.byKey(const Key('increment')));
+    await tester.tap(find.byKey(const Key('increment')));
+    await tester.pump();
+
+    expect(find.text('3'), findsOneWidget);
+
+    // Decrement 2x
+    await tester.tap(find.byKey(const Key('decrement')));
+    await tester.tap(find.byKey(const Key('decrement')));
+    await tester.pump();
+
+    expect(find.text('1'), findsOneWidget);
+  });
+}
+```
+
+### Widget Test: Form Validation
+
+```dart
+testWidgets('shows error when form submitted with empty fields',
+    (tester) async {
+  await tester.pumpWidget(const MaterialApp(home: LoginFormScreen()));
+
+  // Submit form tanpa mengisi field
+  await tester.tap(find.text('Login'));
+  await tester.pump();
+
+  // Validasi error muncul
+  expect(find.text('Email tidak boleh kosong'), findsOneWidget);
+  expect(find.text('Password tidak boleh kosong'), findsOneWidget);
+});
+
+testWidgets('shows error for invalid email format', (tester) async {
+  await tester.pumpWidget(const MaterialApp(home: LoginFormScreen()));
+
+  // Isi email dengan format salah
+  await tester.enterText(
+    find.byKey(const Key('email_field')),
+    'invalid-email',
+  );
+  await tester.enterText(
+    find.byKey(const Key('password_field')),
+    'password123',
+  );
+  await tester.tap(find.text('Login'));
+  await tester.pump();
+
+  expect(find.text('Format email tidak valid'), findsOneWidget);
+});
+
+testWidgets('navigates to home on successful login', (tester) async {
+  await tester.pumpWidget(const MaterialApp(home: LoginFormScreen()));
+
+  await tester.enterText(
+    find.byKey(const Key('email_field')),
+    'user@example.com',
+  );
+  await tester.enterText(
+    find.byKey(const Key('password_field')),
+    'correctpassword',
+  );
+  await tester.tap(find.text('Login'));
+
+  // Tunggu navigasi
+  await tester.pumpAndSettle();
+
+  expect(find.text('Home Screen'), findsOneWidget);
+});
+```
+
+### Testing Widget dengan BLoC Provider
+
+```dart
+testWidgets('shows user data when BLoC emits Loaded state',
+    (tester) async {
+  // Membuat BLoC dengan state tertentu
+  final bloc = UserBloc(
+    getUserUseCase: mockGetUserUseCase,
+    updateUserUseCase: mockUpdateUserUseCase,
+  );
+
+  // Setup mock
+  when(() => mockGetUserUseCase.call(any()))
+      .thenAnswer((_) async => testUser);
+
+  // Trigger load
+  bloc.add(const LoadUserEvent(userId: '123'));
+
+  await tester.pumpWidget(
+    MaterialApp(
+      home: BlocProvider<UserBloc>.value(
+        value: bloc,
+        child: const UserProfileScreen(),
+      ),
+    ),
+  );
+
+  await tester.pumpAndSettle();
+
+  // Pastikan data user tampil
+  expect(find.text(testUser.name), findsOneWidget);
+  expect(find.text(testUser.email), findsOneWidget);
+});
+```
+
+## Integration Test
+
+Integration test menguji aplikasi secara penuh — dari UI sampai ke backend atau database.
+
+### Setup
+
+```dart
+// integration_test/app_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+
+import 'package:my_app/main.dart' as app;
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  group('Full App Flow', () {
+    testWidgets('complete login to home flow', (tester) async {
+      // Start app
+      app.main();
+      await tester.pumpAndSettle();
+
+      // Login screen
+      await tester.enterText(
+        find.byKey(const Key('email_field')),
+        'user@test.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('password_field')),
+        'password123',
+      );
+      await tester.tap(find.text('Login'));
+      await tester.pumpAndSettle();
+
+      // Verifikasi masuk ke home
+      expect(find.text('Dashboard'), findsOneWidget);
+
+      // Tap profile
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+
+      // Verifikasi profile page
+      expect(find.text('user@test.com'), findsOneWidget);
+    });
+  });
+}
+```
+
+### Running Integration Test
+
+```bash
+# Run integration test di device/emulator
+flutter test integration_test/app_test.dart
+
+# Atau dengan driver
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/app_test.dart
+```
+
+### Integration Test vs Widget Test
+
+| Aspek | Widget Test | Integration Test |
+|-------|------------|-----------------|
+| **Scope** | Satu widget atau screen | Full app flow |
+| **Real API** | Mock (disimulasikan) | Real (jika tidak di-stub) |
+| **Navigation** | Terbatas | Real navigation |
+| **Performance** | Cepat | Lambat |
+| **Flaky** | Jarang | Bisa flaky (network, timing) |
+| **Use case** | Component behavior | User journey |
+| **Maintenance** | Rendah | Tinggi |
+
+**Kapan pakai integration test:**
+- Critical user flow (login, checkout, onboarding)
+- Flow yang melibatkan banyak screen
+- Flow dengan platform channel (camera, location, payment)
+- Regression test untuk release
+
+## Golden Tests
+
+Golden test (visual regression test) membandingkan screenshot widget dengan file referensi (golden file).
+
+### Setup Golden Test
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('LoginButton renders correctly', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(
+        body: LoginButton(label: 'Login', onPressed: () {}),
+      )),
+    );
+
+    // Bandingkan dengan golden file
+    await expectLater(
+      find.byType(LoginButton),
+      matchesGoldenFile('goldens/login_button.png'),
+    );
+  });
+}
+```
+
+### Update Golden Files
+
+```bash
+# Update semua golden file dengan screenshot terbaru
+flutter test --update-goldens
+
+# Update spesifik test file
+flutter test --update-goldens test/widget/login_button_test.dart
+```
+
+### Kapan Pakai Golden Test
+
+- **Custom widgets** — widget dengan desain kompleks yang perlu visual verification
+- **Third-party theme integration** — pastikan theme vendor tidak merusak layout
+- **Accessibility changes** — perubahan font scale, text direction
+
+### Golden Test Best Practices
+
+1. **Platform-specific goldens**: File golden untuk Android berbeda dengan iOS karena rendering font berbeda
+2. **Keep goldens in version control**: Golden files harus di-commit ke git
+3. **CI pipeline**: Golden test harus jalan di CI dengan environment yang konsisten (font, screen size)
+4. **Limit usage**: Golden test fragile terhadap perubahan OS/font. Gunakan secukupnya.
+
+## Test Coverage
+
+### Generate Coverage Report
+
+```bash
+# Generate coverage data
+flutter test --coverage
+
+# Output: coverage/lcov.info
+
+# Install lcov (macOS)
+brew install lcov
+
+# Generate HTML report
+genhtml coverage/lcov.info -o coverage/html
+
+# Buka report
+open coverage/html/index.html
+```
+
+### Minimum Coverage Target
+
+Untuk project Flutter production, target coverage yang realistis:
+
+```
+Unit test coverage:    >= 80%   (domain layer wajib)
+Widget test coverage:  >= 60%   (critical screens)
+Integration test:      >= 3 critical user flows
+Golden test:           Semua custom design widgets
+```
+
+**Prioritas coverage (dari yang paling penting):**
+
+1. **Domain layer**: Entities, use cases, repository interfaces — 100% coverage. Layer ini pure Dart, paling mudah di-test, dan paling critical.
+2. **Data layer**: Repository implementations, Mappers — >90% coverage. Banyak edge case di parsing dan error handling.
+3. **Presentation layer**: BLoC/Cubit — >80% menggunakan blocTest. State machine mudah diverifikasi.
+4. **Widgets**: Hanya widget yang mengandung business logic error/loading states.
+
+**Abaikan coverage untuk:**
+- Generated code (.g.dart, .freezed.dart)
+- main.dart dan app configuration
+- Theme definitions (pure constants)
+- Simple stateless widgets (render-only)
+
+### Coverage Gap Detection
+
+```bash
+# Cek baris mana yang tidak ter-cover
+# Format: `lcov --list coverage/lcov.info` untuk summary
+
+# File dengan coverage rendah
+flutter test --coverage
+genhtml coverage/lcov.info -o coverage/html 2>&1 | grep "lines" | head -5
+```
+
+### Strategi Menjaga Coverage
+
+1. **Code review checklist**: Setiap PR harus menyertakan test untuk logic baru
+2. **CI gate**: Pipeline gagal jika coverage turun melebihi threshold (misal >2%)
+3. **Coverage exclusion**: Di `pubspec.yaml` atau `test` config, exclude file yang memang tidak perlu di-test
+4. **Bloc testing**: Gunakan `blocTest()` untuk setiap BLoC — ini menghasilkan coverage tinggi dengan effort rendah
+
+## When to Write What Test
+
+### Decision Matrix
+
+| Skenario | Test Type | Priority |
+|----------|-----------|----------|
+| Business logic (validation, calculation) | Unit test | WAJIB |
+| API/Repository integration | Unit test (mock) | WAJIB |
+| JSON parsing / DTO mapping | Unit test | WAJIB |
+| State management (BLoC, Cubit) | Unit test (blocTest) | WAJIB |
+| Form validation behavior | Widget test | HIGH |
+| Loading/error states | Widget test | HIGH |
+| Navigation flow (login -> home) | Widget test | MEDIUM |
+| Third-party payment integration | Integration test | MEDIUM |
+| Full user journey | Integration test | MEDIUM |
+| Custom design widget | Golden test | LOW |
+| Performance-critical screen | Benchmark test | LOW |
+
+### Anti-Pattern: Over-testing
+
+```dart
+// Terlalu berlebihan — testing getter/setter sederhana
+test('name returns correct value', () {
+  final user = User(name: 'Test');
+  expect(user.name, 'Test');
+});
+
+test('email returns correct value', () {
+  final user = User(email: 'test@test.com');
+  expect(user.email, 'test@test.com');
+});
+```
+
+**Aturan:** Jangan test kode yang tidak mengandung logic. Constructor, getter, constants — sudah terjamin oleh Dart type system.
+
+Tapi jika entity memiliki **business rules** di konstruktor, test itu:
+
+```dart
+test('throws when email format is invalid', () {
+  expect(
+    () => User(name: 'Test', email: 'not-an-email'),
+    throwsA(isA<InvalidEmailException>()),
+  );
+});
+
+test('throws when name is empty', () {
+  expect(
+    () => User(name: '', email: 'test@test.com'),
+    throwsA(isA<InvalidNameException>()),
+  );
+});
+```
+
+## Common Mistakes di Testing
+
+### 1. Mengabaikan Async
+
+```dart
+// SALAH
+testWidgets('login works', (tester) async {
+  await tester.pumpWidget(const LoginScreen());
+  await tester.tap(find.text('Login'));
+  // Langsung assert tanpa pump — state belum berubah
+  expect(find.text('Welcome'), findsOneWidget);
+});
+
+// BENAR
+testWidgets('login works', (tester) async {
+  await tester.pumpWidget(const LoginScreen());
+  await tester.tap(find.text('Login'));
+  await tester.pumpAndSettle(); // Tunggu semua async selesai
+  expect(find.text('Welcome'), findsOneWidget);
+});
+```
+
+### 2. Over-mocking
+
+```dart
+// SALAH — mock semuanya, termasuk yang tidak perlu
+test('user can view profile', () {
+  when(() => mockUserRepository.getUser(any())).thenAnswer(...);
+  when(() => mockHttpClient.get(any())).thenAnswer(...);
+  when(() => mockSharedPrefs.getString(any())).thenReturn(...);
+  when(() => mockNavigator.push(any())).thenReturn(...);
+
+  // Test ini brittle — setiap perubahan internal bikin test fail
+});
+
+// BENAR — mock hanya boundary layer, test behavior bukan implementation
+test('user can view profile', () {
+  when(() => mockUserRepository.getUser(any())).thenAnswer(...);
+
+  // Test fokus ke output behavior
+  const screen = UserProfileScreen();
+  expect(screen, isA<StatelessWidget>());
+});
+```
+
+### 3. Magic Numbers dan Hardcoded Values
+
+```dart
+// SALAH
+test('returns admin user', () async {
+  when(() => repository.getUser('abc-def-123'))
+      .thenAnswer((_) async => adminUser);
+
+  final result = await useCase('abc-def-123');
+  expect(result.role, 'admin');
+});
+
+// BENAR
+final userId = faker.guid.guid();
+final adminRole = 'admin';
+final adminUser = User(id: userId, role: adminRole);
+
+test('returns admin user', () async {
+  when(() => repository.getUser(userId))
+      .thenAnswer((_) async => adminUser);
+
+  final result = await useCase(userId);
+  expect(result.role, adminRole);
+});
+```
+
+### 4. Mengabaikan Negative Tests
+
+```dart
+// SALAH — hanya test happy path
+test('returns user data', () async {
+  when(() => repository.getUser('1')).thenAnswer((_) async => user1);
+  final result = await useCase('1');
+  expect(result, user1);
+});
+
+// BENAR — test happy path dan edge case
+group('getUser', () {
+  test('returns user when found', () async { /* happy path */ });
+  test('throws when not found', () async { /* not found */ });
+  test('throws on server error', () async { /* 500 error */ });
+  test('handles timeout', () async { /* timeout */ });
+  test('handles empty response', () async { /* empty */ });
+});
+```
+
+## Apa Selanjutnya?
+
+Testing adalah investasi jangka panjang. Makin solid test suite Anda, makin berani Anda melakukan refactor. Berikut langkah selanjutnya:
+
+- **[Deployment](/tutorials/flutter/advanced/deployment)**: Cara build aplikasi Flutter ke production — Android App Bundle, iOS Archive, CI/CD pipeline dengan GitHub Actions dan Codemagic
+- **Fastlane**: Automation build, code signing, dan deploy ke Play Store dan App Store
+- **Firebase Test Lab**: Cloud-based testing di berbagai device Android/iOS
+- **Performance testing**: Mengukur frame rate, memory usage, dan startup time secara automated
+
+Mulailah dengan unit test untuk domain layer Anda — itu memberikan ROI tertinggi dengan effort terendah.

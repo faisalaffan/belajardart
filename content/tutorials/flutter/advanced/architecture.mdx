@@ -1,0 +1,1472 @@
+---
+title: Architecture
+description: Desain arsitektur Flutter production-ready — Clean Architecture, BLoC, Riverpod, repository pattern, dependency injection, dan folder structure.
+---
+
+# Architecture Flutter Production-Ready
+
+## Pengantar
+
+Semua Flutter project dimulai dengan sederhana: beberapa widget di `main.dart`, state dikelola dengan `setState`, dan semuanya terlihat rapi. Namun seiring project tumbuh, file mulai membengkak. Widget yang tadinya 50 baris berubah menjadi 500 baris. Logic bisnis tercampur dengan kode UI. Testing menjadi mimpi buruk karena setiap widget test butuh mock puluhan dependency.
+
+Masalah ini dikenal sebagai **Big Widget Anti-Pattern**. Satu file menangani:
+- Layout dan styling
+- State management
+- Business logic
+- API calls
+- Navigasi
+
+Akibatnya:
+- **Susah di-test**: Logic bisnis tidak bisa diuji tanpa widget tree
+- **Susah di-maintain**: Perubahan di satu bagian berisiko merusak bagian lain
+- **Susah di-scale**: Developer baru butuh waktu lama memahami alur data
+- **Susah di-refactor**: Tidak ada batasan yang jelas antara layer
+
+Solusinya adalah **separation of concerns** dengan arsitektur berlapis. Tutorial ini membahas tiga pendekatan arsitektur Flutter production-ready: Clean Architecture, BLoC, dan Riverpod.
+
+## Separation of Concerns
+
+Prinsip fundamental dari arsitektur Flutter yang baik adalah pemisahan tanggung jawab menjadi tiga layer utama:
+
+```
+Presentation Layer (UI)
+     |
+     v
+Domain Layer (Bisnis)
+     |
+     v
+Data Layer (Sumber Data)
+```
+
+### Presentation Layer
+Bertanggung jawab atas UI dan state management. Layer ini mengandung widget, controller/cubit/bloc, dan state classes.
+
+**Yang BOLEH ada di sini:**
+- Widget tree dan layout
+- Theme dan styling
+- Navigasi antar screen
+- State management (BLoC/Riverpod/Provider)
+
+**Yang TIDAK BOLEH ada di sini:**
+- API calls langsung
+- Database queries
+- Business logic transformasi data
+- Error handling business-specific
+
+### Domain Layer
+Layer paling dalam yang tidak bergantung pada framework atau library eksternal. Layer ini mengandung:
+- **Entities**: Model inti bisnis
+- **Use Cases**: Operasi bisnis spesifik
+- **Repository Interfaces**: Kontrak untuk data layer
+
+Domain layer adalah **pure Dart classes** tanpa Flutter dependency sama sekali. Ini membuat domain layer mudah di-test dan bisa dipindahkan ke platform lain.
+
+### Data Layer
+Bertanggung jawab mengimplementasikan repository interfaces. Layer ini mengandung:
+- **Repository Implementations**: Implementasi konkret dari domain contracts
+- **Data Sources**: Remote (API) dan local (database, shared preferences)
+- **DTOs (Data Transfer Objects)**: Model khusus untuk komunikasi eksternal
+- **Mappers**: Konversi DTO ke Entity dan sebaliknya
+
+## Clean Architecture
+
+Clean Architecture dipopulerkan oleh Robert C. Martin (Uncle Bob). Prinsip utamanya: **dependensi mengarah ke dalam**. Layer dalam tidak tahu apa-apa tentang layer luar.
+
+### Dependency Rule
+
+```
+Data Sources (API/DB)
+     |
+Repository Impl
+     |
+Repository Interface (Domain)
+     |
+Use Cases
+     |
+     |----Entities (Core Business Objects)
+     |
+BLoC / State Management
+     |
+UI Widgets
+```
+
+Panah dependensi selalu mengarah ke dalam. Layer luar boleh tahu tentang layer dalam, tapi layer dalam tidak boleh tahu tentang layer luar.
+
+### Entities
+
+Entities adalah objek inti bisnis. Mereka adalah pure Dart classes tanpa anotasi framework.
+
+```dart
+// domain/entities/user.dart
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final DateTime createdAt;
+
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.createdAt,
+  });
+
+  /// Factory untuk create user dengan generated ID
+  factory User.create({
+    required String name,
+    required String email,
+  }) {
+    return User(
+      id: UniqueKey().toString(), // Hanya contoh, pakai UUID di production
+      name: name,
+      email: email,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// CopyWith untuk immutable updates
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    DateTime? createdAt,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}
+```
+
+### Use Cases
+
+Use cases adalah single-responsibility classes yang mengeksekusi satu operasi bisnis.
+
+```dart
+// domain/usecases/get_user_usecase.dart
+import 'package:equatable/equatable.dart';
+import '../entities/user.dart';
+import '../repositories/user_repository.dart';
+
+class GetUserUseCase {
+  final UserRepository repository;
+
+  GetUserUseCase({required this.repository});
+
+  Future<User> call(GetUserParams params) async {
+    final user = await repository.getUser(params.userId);
+    if (user == null) {
+      throw UserNotFoundException('User not found: ${params.userId}');
+    }
+    return user;
+  }
+}
+
+class GetUserParams extends Equatable {
+  final String userId;
+
+  const GetUserParams({required this.userId});
+
+  @override
+  List<Object> get props => [userId];
+}
+
+class UserNotFoundException implements Exception {
+  final String message;
+  UserNotFoundException(this.message);
+}
+```
+
+### Repository Interface
+
+Repository interface didefinisikan di domain layer. Implementasinya ada di data layer.
+
+```dart
+// domain/repositories/user_repository.dart
+import '../entities/user.dart';
+
+abstract class UserRepository {
+  Future<User?> getUser(String userId);
+  Future<List<User>> getAllUsers();
+  Future<void> saveUser(User user);
+  Future<void> deleteUser(String userId);
+}
+```
+
+### Data Layer Implementation
+
+```dart
+// data/repositories/user_repository_impl.dart
+import 'package:my_app/domain/entities/user.dart';
+import 'package:my_app/domain/repositories/user_repository.dart';
+import 'package:my_app/data/datasources/user_remote_datasource.dart';
+import 'package:my_app/data/datasources/user_local_datasource.dart';
+import 'package:my_app/data/models/user_dto.dart';
+
+class UserRepositoryImpl implements UserRepository {
+  final UserRemoteDataSource remoteDataSource;
+  final UserLocalDataSource localDataSource;
+
+  UserRepositoryImpl({
+    required this.remoteDataSource,
+    required this.localDataSource,
+  });
+
+  @override
+  Future<User?> getUser(String userId) async {
+    try {
+      // Coba ambil dari remote
+      final userDto = await remoteDataSource.getUser(userId);
+      final user = userDto.toEntity();
+
+      // Cache ke local
+      await localDataSource.cacheUser(userDto);
+
+      return user;
+    } catch (e) {
+      // Fallback ke local cache
+      final cachedDto = await localDataSource.getCachedUser(userId);
+      return cachedDto?.toEntity();
+    }
+  }
+
+  @override
+  Future<List<User>> getAllUsers() async {
+    final dtos = await remoteDataSource.getAllUsers();
+    return dtos.map((dto) => dto.toEntity()).toList();
+  }
+
+  @override
+  Future<void> saveUser(User user) async {
+    final dto = UserDto.fromEntity(user);
+    await remoteDataSource.createUser(dto);
+  }
+
+  @override
+  Future<void> deleteUser(String userId) async {
+    await remoteDataSource.deleteUser(userId);
+  }
+}
+```
+
+### Data Sources
+
+```dart
+// data/datasources/user_remote_datasource.dart
+import '../models/user_dto.dart';
+
+abstract class UserRemoteDataSource {
+  Future<UserDto> getUser(String userId);
+  Future<List<UserDto>> getAllUsers();
+  Future<void> createUser(UserDto user);
+  Future<void> deleteUser(String userId);
+}
+
+class UserRemoteDataSourceImpl implements UserRemoteDataSource {
+  final http.Client client;
+  final String baseUrl;
+
+  UserRemoteDataSourceImpl({
+    required this.client,
+    required this.baseUrl,
+  });
+
+  @override
+  Future<UserDto> getUser(String userId) async {
+    final response = await client.get(
+      Uri.parse('$baseUrl/users/$userId'),
+    );
+
+    if (response.statusCode == 200) {
+      return UserDto.fromJson(jsonDecode(response.body));
+    } else {
+      throw ServerException('Failed to fetch user: ${response.statusCode}');
+    }
+  }
+
+  @override
+  Future<List<UserDto>> getAllUsers() async {
+    final response = await client.get(
+      Uri.parse('$baseUrl/users'),
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => UserDto.fromJson(json)).toList();
+    } else {
+      throw ServerException('Failed to fetch users: ${response.statusCode}');
+    }
+  }
+
+  @override
+  Future<void> createUser(UserDto user) async {
+    final response = await client.post(
+      Uri.parse('$baseUrl/users'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(user.toJson()),
+    );
+
+    if (response.statusCode != 201) {
+      throw ServerException('Failed to create user: ${response.statusCode}');
+    }
+  }
+
+  @override
+  Future<void> deleteUser(String userId) async {
+    final response = await client.delete(
+      Uri.parse('$baseUrl/users/$userId'),
+    );
+
+    if (response.statusCode != 204) {
+      throw ServerException('Failed to delete user: ${response.statusCode}');
+    }
+  }
+}
+
+class ServerException implements Exception {
+  final String message;
+  ServerException(this.message);
+}
+```
+
+### DTO dan Mapper
+
+```dart
+// data/models/user_dto.dart
+import 'package:my_app/domain/entities/user.dart';
+
+class UserDto {
+  final String id;
+  final String name;
+  final String emailAddress;
+  final String createdAt;
+
+  const UserDto({
+    required this.id,
+    required this.name,
+    required this.emailAddress,
+    required this.createdAt,
+  });
+
+  factory UserDto.fromJson(Map<String, dynamic> json) {
+    return UserDto(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      emailAddress: json['email'] as String,
+      createdAt: json['created_at'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': emailAddress,
+      'created_at': createdAt,
+    };
+  }
+
+  /// Konversi dari Entity ke DTO
+  factory UserDto.fromEntity(User user) {
+    return UserDto(
+      id: user.id,
+      name: user.name,
+      emailAddress: user.email,
+      createdAt: user.createdAt.toIso8601String(),
+    );
+  }
+
+  /// Konversi dari DTO ke Entity
+  User toEntity() {
+    return User(
+      id: id,
+      name: name,
+      email: emailAddress,
+      createdAt: DateTime.parse(createdAt),
+    );
+  }
+}
+```
+
+**Catatan penting:** Perhatikan bahwa `emailAddress` di DTO berbeda dengan `email` di Entity. Ini sengaja — API backend mungkin menggunakan key `email` sementara domain menggunakan `email`. DTO mengelola perbedaan ini.
+
+## BLoC (Business Logic Component)
+
+BLoC adalah state management pattern yang menggunakan **events** sebagai input dan **states** sebagai output. BLoC class menerima stream of events, memprosesnya, dan menghasilkan stream of states.
+
+### Konsep Dasar BLoC
+
+```
+User Interaction -> Event -> BLoC -> State -> UI Rebuild
+```
+
+- **Event**: Representasi dari apa yang terjadi (user tap, page loaded, form submitted)
+- **State**: Representasi dari kondisi UI (loading, loaded, error)
+- **BLoC**: Pure function business logic yang mengubah events menjadi states
+
+### BLoC: Event
+
+```dart
+// presentation/bloc/user_bloc.dart (bagian events)
+part of 'user_bloc.dart';
+
+sealed class UserEvent extends Equatable {
+  const UserEvent();
+
+  @override
+  List<Object> get props => [];
+}
+
+final class LoadUserEvent extends UserEvent {
+  final String userId;
+
+  const LoadUserEvent({required this.userId});
+
+  @override
+  List<Object> get props => [userId];
+}
+
+final class RefreshUserEvent extends UserEvent {
+  const RefreshUserEvent();
+}
+
+final class UpdateUserNameEvent extends UserEvent {
+  final String newName;
+
+  const UpdateUserNameEvent({required this.newName});
+
+  @override
+  List<Object> get props => [newName];
+}
+```
+
+Menggunakan `sealed class` memberikan exhaustiveness checking — compiler Dart akan memastikan semua possible events tertangani.
+
+### BLoC: State
+
+```dart
+// presentation/bloc/user_bloc.dart (bagian states)
+part of 'user_bloc.dart';
+
+sealed class UserState extends Equatable {
+  const UserState();
+
+  @override
+  List<Object> get props => [];
+}
+
+final class UserInitial extends UserState {
+  const UserInitial();
+}
+
+final class UserLoading extends UserState {
+  const UserLoading();
+}
+
+final class UserLoaded extends UserState {
+  final User user;
+
+  const UserLoaded({required this.user});
+
+  @override
+  List<Object> get props => [user];
+}
+
+final class UserError extends UserState {
+  final String message;
+
+  const UserError({required this.message});
+
+  @override
+  List<Object> get props => [message];
+}
+```
+
+### BLoC: Implementasi Lengkap
+
+```dart
+// presentation/bloc/user_bloc.dart
+import 'dart:async';
+import 'package:bloc/bloc.dart';
+import 'package:equatable/equatable.dart';
+import 'package:my_app/domain/entities/user.dart';
+import 'package:my_app/domain/usecases/get_user_usecase.dart';
+import 'package:my_app/domain/usecases/update_user_usecase.dart';
+
+// Events
+part 'user_event.dart';
+
+// States
+part 'user_state.dart';
+
+class UserBloc extends Bloc<UserEvent, UserState> {
+  final GetUserUseCase getUserUseCase;
+  final UpdateUserUseCase updateUserUseCase;
+
+  UserBloc({
+    required this.getUserUseCase,
+    required this.updateUserUseCase,
+  }) : super(const UserInitial()) {
+    on<LoadUserEvent>(_onLoadUser);
+    on<RefreshUserEvent>(_onRefreshUser);
+    on<UpdateUserNameEvent>(_onUpdateName);
+  }
+
+  Future<void> _onLoadUser(
+    LoadUserEvent event,
+    Emitter<UserState> emit,
+  ) async {
+    emit(const UserLoading());
+
+    try {
+      final user = await getUserUseCase.call(
+        GetUserParams(userId: event.userId),
+      );
+      emit(UserLoaded(user: user));
+    } on UserNotFoundException catch (e) {
+      emit(UserError(message: e.message));
+    } catch (e) {
+      emit(UserError(message: 'Gagal memuat data pengguna: $e'));
+    }
+  }
+
+  Future<void> _onRefreshUser(
+    RefreshUserEvent event,
+    Emitter<UserState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is UserLoaded) {
+      emit(const UserLoading());
+
+      try {
+        final user = await getUserUseCase.call(
+          GetUserParams(userId: currentState.user.id),
+        );
+        emit(UserLoaded(user: user));
+      } catch (e) {
+        // Kalau refresh gagal, tetap pakai data lama
+        emit(currentState);
+      }
+    }
+  }
+
+  Future<void> _onUpdateName(
+    UpdateUserNameEvent event,
+    Emitter<UserState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is UserLoaded) {
+      try {
+        final updatedUser = currentState.user.copyWith(name: event.newName);
+        await updateUserUseCase.call(updatedUser);
+        emit(UserLoaded(user: updatedUser));
+      } catch (e) {
+        emit(UserError(message: 'Gagal update nama: $e'));
+      }
+    }
+  }
+}
+```
+
+**Penting:** Setiap handler method diawali `_on` dan diberi parameter `event` dan `Emitter<UserState> emit`. Jangan pernah memanggil `emit` di luar fungsi handler — ini akan menyebabkan runtime error di BLoC 8+.
+
+### BlocProvider: Inject BLoC ke Widget Tree
+
+```dart
+// main.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:my_app/presentation/bloc/user_bloc.dart';
+import 'package:my_app/presentation/screens/user_screen.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => getIt<UserBloc>(),
+      child: MaterialApp(
+        title: 'My App',
+        home: const UserScreen(),
+      ),
+    );
+  }
+}
+```
+
+**BlocProvider vs BlocProvider.value:**
+- Gunakan `BlocProvider(create: ...)` untuk BLoC yang dibuat setiap kali route diakses
+- Gunakan `BlocProvider.value(value: ...)` untuk BLoC yang sudah ada dan ingin di-share
+
+### BlocBuilder: Merespon State
+
+```dart
+// presentation/screens/user_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:my_app/presentation/bloc/user_bloc.dart';
+
+class UserScreen extends StatelessWidget {
+  const UserScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profil Pengguna')),
+      body: BlocBuilder<UserBloc, UserState>(
+        builder: (context, state) {
+          switch (state) {
+            case UserInitial():
+              return const Center(
+                child: Text('Tekan tombol untuk memuat data'),
+              );
+            case UserLoading():
+              return const Center(child: CircularProgressIndicator());
+            case UserLoaded(:final user):
+              return _UserProfileView(user: user);
+            case UserError(:final message):
+              return _ErrorView(message: message);
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          context.read<UserBloc>().add(
+            const LoadUserEvent(userId: '123'),
+          );
+        },
+        child: const Icon(Icons.refresh),
+      ),
+    );
+  }
+}
+```
+
+**Best practice:** Gunakan pattern matching dengan `sealed class` — Dart compiler akan memastikan tidak ada state yang terlewat. Jangan gunakan `if-else` chain untuk widget building.
+
+### BlocListener: Side Effects
+
+```dart
+// Untuk navigasi, snackbar, dialog — bukan untuk UI rebuild
+class UserFormScreen extends StatelessWidget {
+  const UserFormScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<UserBloc, UserState>(
+      listenWhen: (previous, current) =>
+        previous is UserLoaded == false && current is UserLoaded,
+      listener: (context, state) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data berhasil disimpan')),
+        );
+        Navigator.of(context).pop();
+      },
+      child: const _UserForm(),
+    );
+  }
+}
+```
+
+**Penting:** Jangan pakai `BlocListener` untuk UI rebuild. Untuk rebuild, pakai `BlocBuilder`. Untuk kombinasi keduanya, pakai `BlocConsumer`.
+
+```dart
+BlocConsumer<UserBloc, UserState>(
+  listener: (context, state) {
+    if (state is UserError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(state.message)),
+      );
+    }
+  },
+  builder: (context, state) {
+    // Widget building logic
+  },
+);
+```
+
+## Riverpod
+
+Riverpod adalah state management modern yang menyelesaikan masalah Provider legacy: compile-safe, testable tanpa context, dan tidak bergantung pada widget tree.
+
+### Provider Dasar
+
+```dart
+// presentation/providers/user_providers.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:my_app/domain/entities/user.dart';
+import 'package:my_app/domain/usecases/get_user_usecase.dart';
+import 'package:my_app/data/repositories/user_repository_impl.dart';
+
+// Provider untuk repository
+final userRepositoryProvider = Provider<UserRepositoryImpl>((ref) {
+  return UserRepositoryImpl(
+    remoteDataSource: ref.watch(userRemoteDataSourceProvider),
+    localDataSource: ref.watch(userLocalDataSourceProvider),
+  );
+});
+
+// Provider untuk use case
+final getUserUseCaseProvider = Provider<GetUserUseCase>((ref) {
+  return GetUserUseCase(
+    repository: ref.watch(userRepositoryProvider),
+  );
+});
+
+// Simple provider — return nilai tetap atau depend on provider lain
+final appNameProvider = Provider<String>((ref) => 'My App');
+
+// FutureProvider — async operation, handle loading/error secara built-in
+final userListProvider = FutureProvider<List<User>>((ref) async {
+  final useCase = ref.watch(getUserUseCaseProvider);
+  return useCase.getAllUsers();
+});
+```
+
+### StateNotifierProvider
+
+Untuk state yang kompleks dengan mutation logic:
+
+```dart
+// presentation/providers/auth_provider.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:my_app/domain/entities/user.dart';
+
+// State class
+class AuthState {
+  final User? user;
+  final bool isLoading;
+  final String? errorMessage;
+  final bool isAuthenticated;
+
+  const AuthState({
+    this.user,
+    this.isLoading = false,
+    this.errorMessage,
+    this.isAuthenticated = false,
+  });
+
+  AuthState copyWith({
+    User? user,
+    bool? isLoading,
+    String? errorMessage,
+    bool? isAuthenticated,
+  }) {
+    return AuthState(
+      user: user ?? this.user,
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage ?? this.errorMessage,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+    );
+  }
+}
+
+// StateNotifier
+class AuthNotifier extends StateNotifier<AuthState> {
+  final AuthRepository _authRepository;
+
+  AuthNotifier(this._authRepository) : super(const AuthState());
+
+  Future<void> login(String email, String password) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+
+    try {
+      final user = await _authRepository.login(email, password);
+      state = state.copyWith(
+        user: user,
+        isLoading: false,
+        isAuthenticated: true,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Login gagal: $e',
+        isAuthenticated: false,
+      );
+    }
+  }
+
+  Future<void> logout() async {
+    await _authRepository.logout();
+    state = const AuthState();
+  }
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
+  }
+}
+
+// Provider declaration
+final authProvider =
+    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+  final repository = ref.watch(authRepositoryProvider);
+  return AuthNotifier(repository);
+});
+```
+
+### Riverpod + UI (ref.watch / ref.read)
+
+Riverpod memerlukan `ConsumerWidget` atau `Consumer` untuk mengakses providers:
+
+```dart
+// presentation/screens/login_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class LoginScreen extends ConsumerWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    ref.listen(authProvider, (previous, next) {
+      if (next.isAuthenticated) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+      if (next.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.errorMessage!)),
+        );
+      }
+    });
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: 'Email'),
+              onChanged: (value) => ref.read(emailProvider.notifier).set(value),
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: 'Password'),
+              obscureText: true,
+              onChanged: (value) => ref.read(passwordProvider.notifier).set(value),
+            ),
+            const SizedBox(height: 24),
+            Consumer(
+              builder: (context, ref, child) {
+                final isLoginLoading = ref.watch(authProvider).isLoading;
+                return ElevatedButton(
+                  onPressed: isLoginLoading
+                      ? null
+                      : () => ref.read(authProvider.notifier).login(
+                            ref.read(emailProvider),
+                            ref.read(passwordProvider),
+                          ),
+                  child: isLoginLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Login'),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+**ref.watch vs ref.read:**
+- `ref.watch(provider)` — Widget rebuild saat state berubah. Pakai di `build()`.
+- `ref.read(provider)` — Baca state sekali tanpa rebuild. Pakai di callbacks.
+- `ref.listen(provider, callback)` — Efek samping (navigasi, snackbar).
+
+### Riverpod Modifiers
+
+```dart
+// Ballow widget rebuild hanya untuk field tertentu
+final nameProvider = StateProvider<String>((ref) => '');
+
+// Computed provider — depend on other providers
+final greetingProvider = Provider<String>((ref) {
+  final name = ref.watch(nameProvider);
+  return name.isEmpty ? 'Halo, Pengunjung' : 'Halo, $name';
+});
+
+// AutoDispose — cleanup saat tidak ada yang watch
+final searchResultsProvider = FutureProvider.autoDispose<List<User>>((ref) async {
+  final query = ref.watch(searchQueryProvider);
+  if (query.length < 3) return [];
+  return ref.watch(searchUsersUseCaseProvider).call(query);
+});
+```
+
+## Repository Pattern
+
+Repository pattern adalah abstraksi yang memisahkan **data source** dari **business logic**.
+
+### Kenapa Repository Pattern?
+
+```
+Without Repository:
+
+Widget -> API Call langsung
+   ^          |
+   |          v
+Widget -> Database Call langsung
+   ^          |
+   |          v
+Widget -> SharedPreferences langsung
+
+
+With Repository:
+
+Widget -> Repository -> Remote Data Source
+                     -> Local Data Source
+                     -> Cache
+```
+
+Keuntungan:
+1. **Testability**: Repository bisa di-mock tanpa HTTP client
+2. **Flexibility**: Ganti backend tanpa ubah business logic
+3. **Offline-first**: Mudah implementasi cache fallback
+4. **Separation**: UI tidak tahu dari mana data berasal
+
+### Abstract Interface
+
+```dart
+// domain/repositories/order_repository.dart
+import 'package:my_app/domain/entities/order.dart';
+
+abstract class OrderRepository {
+  Future<List<Order>> getOrders({int page = 1, int limit = 20});
+  Future<Order?> getOrder(String orderId);
+  Future<Order> createOrder(Order order);
+  Future<Order> updateOrderStatus(String orderId, OrderStatus status);
+  Future<void> deleteOrder(String orderId);
+}
+```
+
+### Implementasi dengan Multiple Data Sources
+
+```dart
+// data/repositories/order_repository_impl.dart
+class OrderRepositoryImpl implements OrderRepository {
+  final OrderRemoteDataSource remote;
+  final OrderLocalDataSource local;
+
+  OrderRepositoryImpl({
+    required this.remote,
+    required this.local,
+  });
+
+  @override
+  Future<List<Order>> getOrders({int page = 1, int limit = 20}) async {
+    // Strategy: network-first with cache fallback
+    try {
+      final dtos = await remote.getOrders(page: page, limit: limit);
+      final orders = dtos.map((dto) => dto.toEntity()).toList();
+
+      // Cache hasil untuk offline
+      await local.cacheOrders(dtos);
+
+      return orders;
+    } on SocketException {
+      // Tidak ada koneksi — ambil dari cache
+      final cachedDtos = await local.getCachedOrders();
+      if (cachedDtos.isEmpty) {
+        throw NoInternetException();
+      }
+      return cachedDtos.map((dto) => dto.toEntity()).toList();
+    }
+  }
+}
+```
+
+### Testing Repository dengan Mock
+
+```dart
+// test/data/repositories/order_repository_impl_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockRemoteDataSource extends Mock implements OrderRemoteDataSource {}
+class MockLocalDataSource extends Mock implements OrderLocalDataSource {}
+
+void main() {
+  late OrderRepositoryImpl repository;
+  late MockRemoteDataSource mockRemote;
+  late MockLocalDataSource mockLocal;
+
+  setUp(() {
+    mockRemote = MockRemoteDataSource();
+    mockLocal = MockLocalDataSource();
+    repository = OrderRepositoryImpl(
+      remote: mockRemote,
+      local: mockLocal,
+    );
+  });
+
+  group('getOrders', () {
+    test('should return orders from remote when online', () async {
+      when(() => mockRemote.getOrders(page: 1, limit: 20))
+          .thenAnswer((_) async => [testOrderDto]);
+      when(() => mockLocal.cacheOrders(any())).thenAnswer((_) async => {});
+
+      final result = await repository.getOrders();
+
+      expect(result, [testOrderDto.toEntity()]);
+      verify(() => mockLocal.cacheOrders(any())).called(1);
+    });
+
+    test('should return cached orders when offline', () async {
+      when(() => mockRemote.getOrders(page: 1, limit: 20))
+          .thenThrow(SocketException('No internet'));
+      when(() => mockLocal.getCachedOrders())
+          .thenAnswer((_) async => [testOrderDto]);
+
+      final result = await repository.getOrders();
+
+      expect(result, [testOrderDto.toEntity()]);
+    });
+
+    test('should throw NoInternetException when offline and no cache', () async {
+      when(() => mockRemote.getOrders(page: 1, limit: 20))
+          .thenThrow(SocketException('No internet'));
+      when(() => mockLocal.getCachedOrders())
+          .thenAnswer((_) async => []);
+
+      expect(
+        () => repository.getOrders(),
+        throwsA(isA<NoInternetException>()),
+      );
+    });
+  });
+}
+```
+
+## Dependency Injection
+
+### get_it Service Locator
+
+```dart
+// di/injection.dart
+import 'package:get_it/get_it.dart';
+import 'package:http/http.dart' as http;
+
+final getIt = GetIt.instance;
+
+Future<void> initDependencies() async {
+  // External
+  getIt.registerLazySingleton<http.Client>(() => http.Client());
+
+  // Data sources
+  getIt.registerLazySingleton<UserRemoteDataSource>(
+    () => UserRemoteDataSourceImpl(
+      client: getIt(),
+      baseUrl: 'https://api.example.com',
+    ),
+  );
+  getIt.registerLazySingleton<UserLocalDataSource>(
+    () => UserLocalDataSourceImpl(),
+  );
+
+  // Repositories
+  getIt.registerLazySingleton<UserRepository>(
+    () => UserRepositoryImpl(
+      remoteDataSource: getIt(),
+      localDataSource: getIt(),
+    ),
+  );
+
+  // Use cases
+  getIt.registerLazySingleton<GetUserUseCase>(
+    () => GetUserUseCase(repository: getIt()),
+  );
+  getIt.registerLazySingleton<UpdateUserUseCase>(
+    () => UpdateUserUseCase(repository: getIt()),
+  );
+
+  // BLoC
+  getIt.registerFactory<UserBloc>(
+    () => UserBloc(
+      getUserUseCase: getIt(),
+      updateUserUseCase: getIt(),
+    ),
+  );
+}
+```
+
+### Registration Modes
+
+| Method | Behavior | Use Case |
+|--------|----------|----------|
+| `registerLazySingleton` | Dibuat saat pertama dipanggil, disimpan | Repository, use case, API client |
+| `registerSingleton` | Dibuat saat registrasi | Konfigurasi yang sudah ada nilainya |
+| `registerFactory` | Instance baru setiap dipanggil | BLoC, Cubit, stateful services |
+
+**Common Mistake:** Jangan register BLoC sebagai singleton. BLoC mengandung state — singleton BLoC menyebabkan state dishare antar route yang tidak seharusnya. Selalu gunakan `registerFactory` untuk BLoC.
+
+```dart
+// SALAH — BLoC jadi singleton
+getIt.registerLazySingleton<LoginBloc>(() => LoginBloc());
+// Akibat: state login dari screen A masih ada saat navigasi ke screen B
+
+// BENAR — BLoC dibuat baru setiap kali
+getIt.registerFactory<LoginBloc>(() => LoginBloc());
+```
+
+### Injectable Code Generator
+
+Untuk project besar, package `injectable` mengotomatiskan registrasi:
+
+```dart
+// di/injection.dart
+import 'package:injectable/injectable.dart';
+import 'package:get_it/get_it.dart';
+
+final getIt = GetIt.instance;
+
+@InjectableInit()
+Future<void> configureDependencies() async {
+  await getIt.init();
+}
+```
+
+```dart
+// domain/usecases/get_user_usecase.dart
+@injectable
+class GetUserUseCase {
+  final UserRepository _repository;
+
+  GetUserUseCase(this._repository);
+
+  Future<User> call(String userId) async {
+    return _repository.getUser(userId);
+  }
+}
+```
+
+```dart
+// data/repositories/user_repository_impl.dart
+@Injectable(as: UserRepository)
+class UserRepositoryImpl implements UserRepository {
+  final UserRemoteDataSource _remoteDataSource;
+  final UserLocalDataSource _localDataSource;
+
+  UserRepositoryImpl(this._remoteDataSource, this._localDataSource);
+
+  // implementation...
+}
+```
+
+## Folder Structure Rekomendasi
+
+Untuk project Flutter skala menengah hingga besar:
+
+```
+lib/
+  main.dart
+  app.dart
+
+  core/
+    constants/
+      api_constants.dart
+      app_constants.dart
+    error/
+      exceptions.dart
+      failures.dart
+    network/
+      api_client.dart
+      network_info.dart
+    theme/
+      app_theme.dart
+      app_colors.dart
+      app_text_styles.dart
+    utils/
+      validators.dart
+      date_formatter.dart
+
+  features/
+    auth/
+      data/
+        datasources/
+          auth_remote_datasource.dart
+          auth_local_datasource.dart
+        models/
+          user_dto.dart
+          login_request_dto.dart
+          login_response_dto.dart
+        repositories/
+          auth_repository_impl.dart
+      domain/
+        entities/
+          user.dart
+        repositories/
+          auth_repository.dart
+        usecases/
+          login_usecase.dart
+          logout_usecase.dart
+          get_current_user_usecase.dart
+      presentation/
+        bloc/
+          auth_bloc.dart
+          auth_event.dart
+          auth_state.dart
+        pages/
+          login_page.dart
+          register_page.dart
+        widgets/
+          login_form.dart
+          social_login_button.dart
+
+    home/
+      data/
+        ...
+      domain/
+        ...
+      presentation/
+        ...
+
+    profile/
+      data/
+        ...
+      domain/
+        ...
+      presentation/
+        ...
+```
+
+### Alternatif: Single Layer per Feature
+
+Untuk project yang lebih kecil, struktur bisa disederhanakan:
+
+```
+lib/
+  app/
+    app.dart
+    router.dart
+    theme.dart
+  features/
+    auth/
+      models/
+      providers/
+      screens/
+      widgets/
+    home/
+      models/
+      providers/
+      screens/
+      widgets/
+```
+
+Tidak ada pemisahan domain/data/presentation yang kaku. Ini baik untuk tim kecil atau prototype, tapi kurang ideal untuk aplikasi enterprise.
+
+## Decision Matrix
+
+| Kriteria | BLoC | Riverpod | Provider |
+|----------|------|----------|----------|
+| **Complexity** | Tinggi | Medium | Rendah |
+| **Boilerplate** | Banyak (event + state + bloc) | Sedang | Minimal |
+| **Testability** | Excellent | Excellent | Baik |
+| **Learning Curve** | Curam | Medium | Mudah |
+| **Debugging** | Mudah (event trace) | Mudah (DevTools) | Sulit |
+| **Scalability** | Sangat baik | Sangat baik | Terbatas |
+| **Code Generation** | Tersedia (bloc CLI) | Tidak perlu | Tidak perlu |
+| **Best For** | Team besar, complex logic | Medium project, flexibility | Simple app, prototype |
+
+### Kapan Pakai BLoC?
+
+- **Project dengan tim besar** (10+ developer) — events dan states yang eksplisit memudahkan code review
+- **Business logic kompleks** — multi-step form, real-time validation, wizard
+- **Butuh event tracing untuk debugging** — BLoC DevTools mencatat setiap event dan state transition
+- **Project jangka panjang** — boilerplate awal terbayar dengan maintainability jangka panjang
+
+### Kapan Pakai Riverpod?
+
+- **Medium project** — tidak butuh boilerplate sebanyak BLoC
+- **Flexibility tinggi** — compile-safe, no BuildContext dependency
+- **Testing mudah** — override provider langsung di test
+- **Auto-dispose** — resource cleanup otomatis
+
+### Kapan Pakai Provider (Legacy)?
+
+- **Simple app** — satu atau dua screen saja
+- **Prototype cepat** — proof of concept
+- **Maintenance project existing** — sudah menggunakan Provider dan tidak feasible migrasi
+
+### Common Mistake: Mencampur BLoC dan Riverpod dalam 1 Project
+
+Menggunakan BLoC di satu fitur dan Riverpod di fitur lain dalam project yang sama menyebabkan:
+- Developer harus menguasai dua state management sekaligus
+- Testing strategy tidak konsisten
+- Overhead mental saat context switching
+- Dependency injection setup jadi lebih kompleks
+
+Pilih satu dan konsisten.
+
+## Anti-Patterns
+
+### 1. God Widget
+
+Widget >300 baris yang menangani semuanya.
+
+```dart
+// ANTI-PATTERN
+class DashboardScreen extends StatefulWidget {
+  // ... 400 baris api calls, business logic, layout, forms, table
+}
+```
+
+**Solusi:** Pecah menjadi widget kecil. Setiap widget punya satu tanggung jawab. Jika widget membutuhkan data dari BLoC/provider yang sama, gunakan `context.read()` bukan meneruskan parameter melalui constructor.
+
+### 2. Logic di build()
+
+```dart
+// ANTI-PATTERN
+@override
+Widget build(BuildContext context) {
+  final data = someExpensiveCalculation(); // JANGAN!
+  _doSomethingOnEveryRebuild(); // JANGAN!
+
+  return Container(/* ... */);
+}
+```
+
+`build()` bisa dipanggil puluhan kali per detik (animasi, keyboard, scroll). Logic berat di `build()` menyebabkan jank dan frame drop.
+
+**Solusi:** Pindahkan ke initState, BLoC event handler, atau compute isolate.
+
+```dart
+// BENER
+@override
+void initState() {
+  super.initState();
+  // Panggil API atau kalkulasi di sini
+  context.read<SomeBloc>().add(LoadDataEvent());
+}
+
+@override
+Widget build(BuildContext context) {
+  // Hanya layout dan widget tree
+  return Container(/* ... */);
+}
+```
+
+### 3. Direct API Call dari Widget
+
+```dart
+// ANTI-PATTERN
+class ProductScreen extends StatefulWidget {
+  @override
+  _ProductScreenState createState() => _ProductScreenState();
+}
+
+class _ProductScreenState extends State<ProductScreen> {
+  List<Product>? products;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts(); // API call langsung di widget
+  }
+
+  Future<void> _fetchProducts() async {
+    final response = await http.get(Uri.parse('https://api.example.com/products'));
+    final data = jsonDecode(response.body) as List;
+    setState(() {
+      products = data.map((e) => Product.fromJson(e)).toList();
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Tidak testable — mock HTTP response butuh mock server
+  }
+}
+```
+
+**Masalah:** Widget test harus mock HTTP layer. Business logic tidak reusable. Error handling campur aduk dengan UI.
+
+**Solusi:** Gunakan repository + BLoC/Riverpod.
+
+### 4. Menggunakan BuildContext di Luar Widget
+
+```dart
+// ANTI-PATTERN
+class MyService {
+  void doSomething() {
+    final context = navigatorKey.currentContext!; // Tidak aman!
+    final bloc = context.read<SomeBloc>(); // Crash kalau context tidak mounted
+  }
+}
+```
+
+**Solusi:** BLoC dan Riverpod menerima dependency melalui constructor — tidak perlu BuildContext.
+
+```dart
+// BENER
+class MyBloc extends Bloc<MyEvent, MyState> {
+  final SomeRepository repository;
+
+  MyBloc({required this.repository}) : super(MyInitial()) {
+    on<DoSomethingEvent>((event, emit) {
+      final data = repository.getData(); // Tidak butuh context
+      // ...
+    });
+  }
+}
+```
+
+### 5. Memanggil BlocProvider.create Berulang
+
+```dart
+// ANTI-PATTERN — BLoC dibuat baru setiap rebuild
+@override
+Widget build(BuildContext context) {
+  return BlocProvider(
+    create: (context) => getIt<CounterBloc>(),
+    child: CounterPage(),
+  );
+}
+```
+
+Kalau parent widget rebuild, `create` dipanggil lagi dan BLoC di-reset. Ini menyebabkan state hilang secara tidak terduga.
+
+**Solusi:** Pastikan BlocProvider ditempatkan di level yang stabil, atau gunakan `BlocProvider.value`:
+
+```dart
+// BENER — BLoC dibuat sekali di page level
+class CounterPage extends StatelessWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => getIt<CounterBloc>(),
+      child: const CounterView(),
+    );
+  }
+}
+```
+
+## Apa Selanjutnya?
+
+Setelah memahami arsitektur Flutter production-ready, langkah selanjutnya adalah menerapkannya dalam testing:
+
+- **[Testing](/tutorials/flutter/advanced/testing)**: Unit test untuk use cases, widget test untuk BLoC states, integration test untuk full flow
+- **Mocking dengan mocktail**: Bagaimana mock repository dan datasource untuk test
+- **Golden tests**: Visual regression testing untuk memastikan UI tidak berubah
+- **Test coverage**: Strategi coverage dan target minimal untuk production
+
+Arsitektur yang baik adalah fondasi. Testing adalah jaring pengaman. Keduanya diperlukan untuk aplikasi Flutter yang scalable, maintainable, dan production-ready.
