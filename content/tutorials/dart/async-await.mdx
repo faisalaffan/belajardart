@@ -1,0 +1,954 @@
+---
+title: Async & Await
+description: Pelajari pemrograman asynchronous di Dart — Future, async/await, then/catchError, Future.wait, dan error handling untuk operasi non-blocking.
+---
+
+## Pengantar
+
+Coba bayangkan kamu lagi di kedai kopi. Kamu pesan kopi, lalu:
+
+- **Synchronous** (sinkron): Kamu diam di meja kasir sambil nunggu kopi jadi. Barista tidak melayani pelanggan lain sampai kopimu selesai. Semua antri — tidak efisien.
+- **Asynchronous** (async): Kamu pesan, dapat nomor antrian, duduk, baca buku. Barista lanjut layani pelanggan lain. Begitu kopimu siap, nama kamu dipanggil. Jauh lebih efisien, kan?
+
+Itulah esensi async di Dart. Dart berjalan di **single thread** — satu jalur eksekusi. Tanpa async, saat aplikasi menunggu data dari internet atau membaca file, layar akan **freeze**. Semua berhenti. Pengalaman pengguna jadi jelek.
+
+Dengan async, aplikasi tetap responsif. Operasi berat (HTTP request, baca file, query database) dijalankan di latar belakang, sementara UI dan interaksi pengguna tetap berjalan normal.
+
+```dart
+// Bayangkan ini synchronous — akan nge-freeze selama 2 detik
+void pesanKopi() {
+  print('Pesan kopi...');
+  tunggu(2); // 🛑 Semua berhenti 2 detik!
+  print('Kopi siap!');
+}
+
+// Ini asynchronous — tidak freeze
+Future<void> pesanKopiAsync() async {
+  print('Pesan kopi...');
+  await Future.delayed(Duration(seconds: 2)); // ⏳ Nunggu tanpa freeze
+  print('Kopi siap!');
+}
+```
+
+Topik ini akan membahas **Future**, **async/await**, **error handling**, dan **Future.wait** — semua yang kamu butuh untuk menulis kode async yang bersih dan aman.
+
+---
+
+## Future<T>
+
+**Future** adalah inti dari pemrograman async di Dart. Sebuah `Future<T>` merepresentasikan nilai (atau error) yang akan tersedia **di masa depan**.
+
+- `Future<int>` — suatu saat akan dapat `int`
+- `Future<String>` — suatu saat akan dapat `String`
+- `Future<void>` — tidak ada nilai return, cuma butuh tahu kapan selesai
+
+```dart
+// Future pada dasarnya adalah "janji" (promise)
+// Saat dibuat, Future mulai jalan, hasilnya belum ada
+Future<String> sapaSetelah1Detik() {
+  return Future.delayed(
+    Duration(seconds: 1),
+    () => 'Halo, dunia async!',
+  );
+}
+
+void main() {
+  print('Memulai...');
+
+  // Future.value — langsung selesai (sync di microtask)
+  var langsung = Future.value(42);
+  langsung.then((v) => print('Langsung: $v'));
+
+  // Future.error — langsung gagal
+  var gagal = Future.error('Ada masalah!');
+  gagal.then((v) => print(v)).catchError((e) => print('Error: $e'));
+
+  // Future.delayed — selesai setelah N detik
+  var nanti = Future.delayed(
+    Duration(seconds: 2),
+    () => 'Dua detik kemudian...',
+  );
+  nanti.then((msg) => print(msg));
+}
+```
+
+### Status Future
+
+| Status | Arti |
+|--------|------|
+| **Uncompleted** | Future baru dibuat, belum selesai |
+| **Completed with value** | Berhasil, punya nilai `<T>` |
+| **Completed with error** | Gagal, punya error/exception |
+| **Unresolved** | Masih menunggu (belum uncompleted juga) |
+
+Begitu Future selesai (completed), statusnya tidak bisa berubah lagi. Hanya satu kali.
+
+---
+
+## async/await Syntax
+
+`async` dan `await` adalah syntactic sugar di atas Future. Mereka membuat kode async terlihat seperti kode sync — lebih mudah dibaca dan di-debug.
+
+### Perbandingan: Callback vs async/await
+
+```dart
+// --- TANPA async/await (callback hell) ---
+Future<String> ambilDataCallback() {
+  return Future.delayed(
+    Duration(seconds: 1),
+    () => 'data dari server',
+  );
+}
+
+void prosesCallback() {
+  print('1. Mulai ambil data...');
+
+  ambilDataCallback().then((data) {
+    print('3. Data diterima: $data');
+    // Kalau butuh chaining:
+    ambilDataCallback().then((lagi) {
+      print('4. Data kedua: $lagi');
+      // Makin dalem, makin jelek...
+    });
+  });
+
+  print('2. Ini jalan duluan karena async');
+}
+
+// --- DENGAN async/await ---
+Future<void> prosesAsync() async {
+  print('1. Mulai ambil data...');
+
+  String data = await ambilDataCallback();
+  print('3. Data diterima: $data');
+
+  String lagi = await ambilDataCallback();
+  print('4. Data kedua: $lagi');
+
+  print('5. Selesai — semua berurutan!');
+}
+```
+
+### Aturan Dasar
+
+```dart
+// ATURAN 1: async function return Future
+// Kalau function pake async, return type-nya harus Future
+Future<String> getNama() async {
+  return 'Alice'; // otomatis dibungkus Future.value('Alice')
+}
+
+Future<int> getUmur() async {
+  return 25;
+}
+
+Future<void> cetakLaporan() async {
+  print('Laporan dicetak');
+}
+
+// ATURAN 2: await hanya bisa di dalam async function
+void main() async {
+  // ✅ await di dalam async main
+  var nama = await getNama();
+  print(nama);
+
+  // Di luar async function, harus pakai .then()
+  // await getNama(); // ERROR kalau main() tidak async
+}
+
+// ATURAN 3: Yang di-await harus Future
+void main2() async {
+  String nama = 'Bob';
+  // await nama; // ERROR — String bukan Future
+}
+```
+
+### Eksekusi Tetap Sequential
+
+Penting: `await` membuat eksekusi **menunggu** di titik itu, tapi **tidak memblokir thread**. Thread tetap bisa mengerjakan hal lain (seperti event loop) sambil menunggu.
+
+```dart
+Future<void> task(String nama, int detik) async {
+  print('$nama: mulai');
+  await Future.delayed(Duration(seconds: detik));
+  print('$nama: selesai setelah $detik detik');
+}
+
+void main() async {
+  print('=== Sequential (await satu per satu) ===');
+
+  // Ini sequential — task2 baru jalan setelah task1 selesai
+  await task('Task 1', 2);
+  await task('Task 2', 1);
+
+  print('Selesai');
+  // Output:
+  // Task 1: mulai
+  // (2 detik)
+  // Task 1: selesai setelah 2 detik
+  // Task 2: mulai
+  // (1 detik)
+  // Task 2: selesai setelah 1 detik
+  // Selesai
+  // Total: ~3 detik
+}
+```
+
+---
+
+## Error Handling
+
+Error di async sama pentingnya dengan success case. Dart menyediakan `try/catch/finally` untuk async — sama persis seperti sync code.
+
+### try/catch/on/finally
+
+```dart
+Future<String> fetchData(bool gagal) async {
+  await Future.delayed(Duration(seconds: 1));
+  if (gagal) {
+    throw Exception('Gagal mengambil data!');
+  }
+  return 'Data berhasil diambil';
+}
+
+void main() async {
+  // --- try/catch dasar ---
+  try {
+    var data = await fetchData(false);
+    print('Sukses: $data');
+  } catch (e) {
+    print('Terjadi error: $e');
+  }
+
+  // --- dengan 'on' untuk tipe error spesifik ---
+  try {
+    var data = await fetchData(true);
+    print(data);
+  } on FormatException catch (e) {
+    print('Format error: $e');
+  } on Exception catch (e) {
+    print('Exception: $e');
+  } catch (e) {
+    print('Error tak dikenal: $e');
+  }
+
+  // --- finally — tetap jalan walau error ---
+  try {
+    var data = await fetchData(true);
+    print(data);
+  } catch (e) {
+    print('Error: $e');
+  } finally {
+    print('🔥 Finally selalu dieksekusi — tutup koneksi di sini');
+  }
+}
+```
+
+### Rethrow
+
+Kadang kamu perlu menangkap error untuk logging atau cleanup, lalu melempar ulang.
+
+```dart
+Future<String> bacaFile(String path) async {
+  try {
+    // Simulasi baca file
+    if (path.isEmpty) {
+      throw ArgumentError('Path tidak boleh kosong');
+    }
+    await Future.delayed(Duration(milliseconds: 500));
+    return 'Isi file dari $path';
+  } catch (e) {
+    // Logging dulu
+    print('[LOG] Error baca file $path: $e');
+    // Lalu rethrow — biar caller yang handle
+    rethrow;
+  }
+}
+
+void main() async {
+  try {
+    var isi = await bacaFile('');
+    print(isi);
+  } catch (e) {
+    print('Caller menangani: $e');
+  }
+}
+```
+
+### Retry Pattern
+
+Pattern sederhana untuk mencoba ulang operasi yang gagal:
+
+```dart
+Future<String> fetchWithRetry(int maxRetry) async {
+  for (int i = 0; i < maxRetry; i++) {
+    try {
+      return await fetchData(true); // fungsi yang mungkin gagal
+    } catch (e) {
+      print('Percobaan ${i + 1} gagal: $e');
+      if (i == maxRetry - 1) {
+        rethrow; // Habis percobaan, lempar error
+      }
+      print('Tunggu 1 detik sebelum retry...');
+      await Future.delayed(Duration(seconds: 1));
+    }
+  }
+  throw Exception('Tidak tercapai — seharusnya');
+}
+
+Future<String> fetchData(bool gagal) async {
+  await Future.delayed(Duration(milliseconds: 500));
+  // Simulasi kadang gagal
+  if (DateTime.now().second % 2 == 0) {
+    throw Exception('Server sibuk');
+  }
+  return 'Data OK';
+}
+
+void main() async {
+  try {
+    var data = await fetchWithRetry(3);
+    print('Berhasil: $data');
+  } catch (e) {
+    print('Gagal total setelah 3 percobaan: $e');
+  }
+}
+```
+
+---
+
+## Future.wait — Parallel Execution
+
+Kalau kamu punya beberapa Future independen (tidak saling bergantung), jalankan **paralel** dengan `Future.wait`. Ini jauh lebih cepat dari sequential.
+
+```dart
+Future<String> fetchUser() async {
+  print('🔄 Fetch user...');
+  await Future.delayed(Duration(seconds: 2));
+  return 'Alice';
+}
+
+Future<String> fetchPosts() async {
+  print('🔄 Fetch posts...');
+  await Future.delayed(Duration(seconds: 3));
+  return '[Post1, Post2, Post3]';
+}
+
+Future<String> fetchComments() async {
+  print('🔄 Fetch comments...');
+  await Future.delayed(Duration(seconds: 1));
+  return '[Comment1, Comment2]';
+}
+
+void main() async {
+  print('=== Sequential (lambat) ===');
+  var start = DateTime.now();
+
+  var user = await fetchUser();
+  var posts = await fetchPosts();
+  var comments = await fetchComments();
+
+  print('User: $user, Posts: $posts, Comments: $comments');
+  print('Durasi sequential: ${DateTime.now().difference(start).inSeconds} detik');
+  // Total: 2 + 3 + 1 = ~6 detik
+
+  print('\n=== Parallel dengan Future.wait (cepat) ===');
+  start = DateTime.now();
+
+  var hasil = await Future.wait([
+    fetchUser(),
+    fetchPosts(),
+    fetchComments(),
+  ]);
+
+  user = hasil[0] as String;
+  posts = hasil[1] as String;
+  comments = hasil[2] as String;
+
+  print('User: $user, Posts: $posts, Comments: $comments');
+  print('Durasi parallel: ${DateTime.now().difference(start).inSeconds} detik');
+  // Total: hanya ~3 detik (paling lambat dari 3 task)
+}
+```
+
+### Future.wait dengan Error
+
+Ada dua mode `Future.wait` untuk menangani error:
+
+```dart
+void main() async {
+  Future<String> taskA() async {
+    await Future.delayed(Duration(seconds: 1));
+    return 'A';
+  }
+
+  Future<String> taskB() async {
+    await Future.delayed(Duration(seconds: 2));
+    throw Exception('B gagal');
+  }
+
+  Future<String> taskC() async {
+    await Future.delayed(Duration(seconds: 3));
+    return 'C';
+  }
+
+  // Mode default: eagerError = true
+  // Begitu ada error, Future.wait langsung selesai (gagal)
+  try {
+    var hasil = await Future.wait([taskA(), taskB(), taskC()]);
+    print(hasil);
+  } catch (e) {
+    print('Eager error: $e');
+    // taskC masih jalan, tapi hasilnya tidak diambil
+  }
+
+  // Mode: eagerError = false
+  // Semua task tetap dijalankan, error dikumpulkan
+  try {
+    var hasil = await Future.wait(
+      [taskA(), taskB(), taskC()],
+      eagerError: false,
+    );
+    print(hasil);
+  } catch (e) {
+    print('Non-eager error: $e');
+    // Semua task tetap selesai walau ada yang error
+  }
+
+  // cleanUp callback — untuk cleanup partial results
+  Future<String> taskD() async {
+    await Future.delayed(Duration(seconds: 1));
+    return 'D';
+  }
+
+  try {
+    await Future.wait(
+      [taskD(), taskB()],
+      cleanUp: (successValue) {
+        print('Cleanup for: $successValue');
+      },
+    );
+  } catch (e) {
+    print('Error tertangkap di luar');
+  }
+}
+```
+
+---
+
+## then, catchError, whenComplete
+
+Kadang kamu lebih suka method chaining daripada async/await — terutama untuk kasus sederhana.
+
+```dart
+void main() {
+  // --- then — chaining ---
+  Future.value(5)
+    .then((v) => v * 2)
+    .then((v) => v + 3)
+    .then((v) => print('Hasil: $v')); // 13
+
+  // --- catchError — menangkap error dari chain ---
+  Future.error('Gagal!')
+    .then((v) => print(v))
+    .catchError((e) => print('Ketangkep: $e'));
+
+  // --- whenComplete — mirip finally ---
+  Future.delayed(Duration(seconds: 1), () => 'Selesai')
+    .then((msg) => print(msg))
+    .whenComplete(() => print('✅ whenComplete selalu jalan'));
+
+  // --- Praktik penting: catchError di akhir chain ---
+  Future.value(10)
+    .then((v) {
+      throw Exception('Error di tengah chain');
+    })
+    .then((v) => print('Ini tidak akan jalan'))
+    .catchError((e) => print('Error tertangkap: $e'));
+}
+```
+
+### Peringatan Penting: catchError di Tempat yang Salah
+
+```dart
+void main() {
+  // ❌ Salah — catchError hanya menangkap error dari then SEBELUMNYA
+  Future.error('Awal')
+    .catchError((e) {
+      print('Error: $e');
+      // Kalau catchError return nilai, maka chain lanjut sebagai success
+      return 'Nilai default';
+    })
+    .then((v) => print('Lanjut dengan: $v'));
+  // Output: Error: Awal, Lanjut dengan: Nilai default
+
+  // ❌ Masalah — error di dalam then tidak ketangkep
+  Future.value(1)
+    .then((v) {
+      throw 'Error di sini';
+    })
+    .then((v) => print('Aman'))
+    .catchError((e) => print('Ketangkep: $e'));
+  // ✅ Benar — tapi perlu pastikan catchError di akhir
+}
+```
+
+---
+
+## Real-World Example: HTTP GET
+
+Mari kita lihat contoh nyata — mengambil data dari internet:
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+// Contoh function untuk mengambil data dari API
+Future<Map<String, dynamic>> getUserFromApi(int userId) async {
+  final url = Uri.parse('https://jsonplaceholder.typicode.com/users/$userId');
+
+  try {
+    print('🔄 Mengambil data user $userId...');
+    final start = DateTime.now();
+
+    // Ini async — tidak freeze aplikasi
+    final response = await HttpClient().getUrl(url);
+    final body = await response.close();
+    final jsonString = await body.transform(utf8.decoder).join();
+
+    final durasi = DateTime.now().difference(start);
+    print('✅ Selesai dalam ${durasi.inMilliseconds}ms');
+
+    if (body.statusCode != 200) {
+      throw HttpException(
+        'Gagal: HTTP ${body.statusCode}',
+        uri: url,
+      );
+    }
+
+    return jsonDecode(jsonString) as Map<String, dynamic>;
+  } on SocketException catch (e) {
+    throw Exception('Network error: ${e.message}');
+  } on FormatException catch (e) {
+    throw Exception('Invalid JSON: ${e.message}');
+  } finally {
+    print('🔚 Koneksi ditutup');
+  }
+}
+
+void main() async {
+  // Contoh 1: Sequential — ambil user satu per satu
+  print('\n=== Sequential ===');
+  try {
+    var user1 = await getUserFromApi(1);
+    print('User 1: ${user1['name']} — ${user1['email']}');
+
+    var user2 = await getUserFromApi(2);
+    print('User 2: ${user2['name']} — ${user2['email']}');
+  } catch (e) {
+    print('Gagal: $e');
+  }
+
+  // Contoh 2: Parallel — ambil beberapa user sekaligus
+  print('\n=== Parallel ===');
+  try {
+    var users = await Future.wait([
+      getUserFromApi(3),
+      getUserFromApi(4),
+      getUserFromApi(5),
+    ]);
+
+    for (var user in users) {
+      print('User: ${user['name']} — ${user['email']}');
+    }
+  } catch (e) {
+    print('Gagal: $e');
+  }
+
+  // Contoh 3: User-friendly error handling
+  print('\n=== Dengan retry ===');
+  try {
+    var user = await getUserWithRetry(999); // user 999 mungkin tidak ada
+    print('User: $user');
+  } catch (e) {
+    print('Tidak bisa mengambil data: $e');
+  }
+}
+
+// Function dengan retry + timeout
+Future<Map<String, dynamic>> getUserWithRetry(int userId,
+    {int maxRetry = 2, Duration timeout = Duration(seconds: 5)}) async {
+  for (int attempt = 1; attempt <= maxRetry; attempt++) {
+    try {
+      var result = await getUserFromApi(userId).timeout(timeout);
+      return result;
+    } on TimeoutException {
+      print('⏱ Attempt $attempt: Timeout');
+    } catch (e) {
+      print('⚠️ Attempt $attempt: $e');
+    }
+
+    if (attempt < maxRetry) {
+      await Future.delayed(Duration(seconds: 1));
+    }
+  }
+
+  throw Exception('Gagal setelah $maxRetry percobaan');
+}
+```
+
+### FutureBuilder — Async di UI Flutter
+
+Kalau kamu pakai Flutter, `FutureBuilder` adalah widget untuk menampilkan hasil Future di UI:
+
+```dart
+import 'package:flutter/material.dart';
+
+// Contoh widget yang menampilkan data dari Future
+class UserProfileWidget extends StatelessWidget {
+  final Future<Map<String, dynamic>> userFuture;
+
+  const UserProfileWidget({super.key, required this.userFuture});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: userFuture,
+      builder: (context, snapshot) {
+        // Loading state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Error state
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: ${snapshot.error}'),
+              ],
+            ),
+          );
+        }
+
+        // Data state
+        if (!snapshot.hasData) {
+          return const Center(child: Text('Tidak ada data'));
+        }
+
+        final user = snapshot.data!;
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(child: Text(user['name'][0])),
+            title: Text(user['name']),
+            subtitle: Text(user['email']),
+          ),
+        );
+      },
+    );
+  }
+}
+```
+
+---
+
+## Stream — Alternatif untuk Data Berulang
+
+Future cocok untuk satu kali data. Tapi kalau datanya datang **berulang kali** (streaming data, event WebSocket, lokasi GPS), kamu butuh **Stream**.
+
+```dart
+import 'dart:async';
+
+// Stream sederhana — menghasilkan angka setiap detik
+Stream<int> hitungMundur(int dari) async* {
+  for (int i = dari; i >= 0; i--) {
+    yield i; // yield = kirim data ke stream
+    await Future.delayed(Duration(seconds: 1));
+  }
+}
+
+void main() async {
+  // await for — iterasi stream
+  print('Hitung mundur:');
+  await for (var angka in hitungMundur(3)) {
+    print(angka);
+  }
+  print('🚀 Go!');
+
+  // Stream transformation
+  var stream = hitungMundur(5);
+  var genap = stream.where((n) => n.isEven);
+  await for (var n in genap) {
+    print('Genap: $n');
+  }
+
+  // Listen dengan callback
+  hitungMundur(3).listen(
+    (data) => print('Listen: $data'),
+    onError: (error) => print('Error: $error'),
+    onDone: () => print('Selesai!'),
+  );
+}
+```
+
+---
+
+## Async di Dart: Timeline Eksekusi
+
+Memahami **event loop** membantu debug masalah async:
+
+```dart
+void main() {
+  print('1. Sync pertama');
+
+  Future(() => print('2. Future (microtask queue)'));
+
+  Future.microtask(() => print('3. Microtask'));
+
+  Future.delayed(Duration.zero, () => print('4. Future delayed(0)'));
+
+  print('5. Sync kedua');
+}
+
+// Output:
+// 1. Sync pertama
+// 5. Sync kedua
+// 3. Microtask
+// 2. Future (microtask queue)
+// 4. Future delayed(0)
+
+// Urutan eksekusi Dart event loop:
+// 1. Sync code (main) selesai dulu
+// 2. Microtask queue — Future.microtask()
+// 3. Event queue — Future(), Future.delayed()
+```
+
+| Queue | Prioritas | Contoh |
+|-------|-----------|--------|
+| **Microtask** | Lebih tinggi | `Future.microtask()`, `scheduleMicrotask()` |
+| **Event** | Lebih rendah | `Future()`, `Future.delayed()`, I/O, timer |
+
+---
+
+## Common Mistakes
+
+### 1. Lupa await
+
+Ini adalah mistake paling umum di Dart async — bahkan untuk developer berpengalaman.
+
+```dart
+Future<String> fetchData() async {
+  await Future.delayed(Duration(seconds: 1));
+  return 'Data penting';
+}
+
+void main() async {
+  // ❌ Salah — lupa await, dapat Future, bukan String
+  var hasil = fetchData();
+  print(hasil); // Instance of 'Future<String>'
+
+  // ✅ Benar
+  var hasil2 = await fetchData();
+  print(hasil2); // Data penting
+}
+```
+
+Trik: pasang **linter rule** `await_only_futures` dan `unawaited_futures` di `analysis_options.yaml`:
+
+```yaml
+linter:
+  rules:
+    - await_only_futures
+    - unawaited_futures
+```
+
+### 2. catchError Tanpa Tipe
+
+```dart
+// ❌ Salah — menangkap semua error, termasuk TypeError yang seharusnya crash
+Future.error('error')
+  .catchError((e) => print('Ketangkep: $e'));
+
+// ✅ Lebih baik — filter dengan test parameter
+Future<int>()
+  .then((v) => v + 1)
+  .catchError((e) {
+    print('Hanya menangani exception: $e');
+    return -1;
+  }, test: (e) => e is Exception);
+```
+
+### 3. Future.wait Tanpa Handle Return
+
+```dart
+void main() async {
+  Future<void> saveToDb() async {
+    await Future.delayed(Duration(seconds: 1));
+    print('Data disimpan');
+  }
+
+  Future<void> sendEmail() async {
+    await Future.delayed(Duration(seconds: 1));
+    print('Email terkirim');
+  }
+
+  // ❌ Salah — Future tanpa await atau return
+  // saveToDb();
+  // sendEmail();
+  // print('Selesai'); // Ini jalan duluan! Kedua Future belum tentu selesai
+
+  // ✅ Benar — pakai Future.wait
+  await Future.wait([saveToDb(), sendEmail()]);
+  print('Selesai'); // Dijalanin setelah keduanya selesai
+}
+```
+
+### 4. Blocking Thread dengan Operasi Berat
+
+```dart
+void main() async {
+  // ❌ Salah — operasi berat di async function tapi blocking
+  await hitungPrimaBesar(1000000); // Thread tetap ke-block!
+
+  // ✅ Benar — pakai Isolate untuk CPU-intensive task
+  // import 'dart:isolate';
+  // var hasil = await Isolate.run(() => hitungPrimaBesar(1000000));
+}
+
+int hitungPrimaBesar(int max) {
+  int count = 0;
+  for (int i = 2; i <= max; i++) {
+    if (isPrime(i)) count++;
+  }
+  return count;
+}
+
+bool isPrime(int n) {
+  for (int i = 2; i <= n ~/ 2; i++) {
+    if (n % i == 0) return false;
+  }
+  return true;
+}
+```
+
+Async/await bagus untuk I/O (network, file, database), tapi untuk **CPU-heavy computation** tetap perlu `Isolate` karena async tidak membuat operasi CPU berjalan paralel.
+
+### 5. Async Constructor
+
+```dart
+// ❌ Tidak bisa! Constructor tidak bisa async
+// class UserLoader {
+//   UserLoader() async {
+//     await loadUser();
+//   }
+// }
+
+// ✅ Alternatif: factory constructor + static async method
+class UserLoader {
+  final String name;
+
+  UserLoader(this.name);
+
+  static Future<UserLoader> create(int userId) async {
+    var name = await fetchUserName(userId);
+    return UserLoader(name);
+  }
+}
+
+Future<String> fetchUserName(int id) async {
+  await Future.delayed(Duration(milliseconds: 500));
+  return 'User_$id';
+}
+
+void main() async {
+  // Pakai factory
+  var loader = await UserLoader.create(1);
+  print(loader.name);
+}
+```
+
+### 6. Async di main() Tanpa Handle
+
+```dart
+// ❌ main() tanpa return — tidak menunggu Future selesai
+// void main() {
+//   doSomething(); // Fire and forget
+// }
+
+// ✅ main() async
+Future<void> main() async {
+  await doSomething();
+}
+
+Future<void> doSomething() async {
+  await Future.delayed(Duration(seconds: 1));
+  print('Selesai');
+}
+```
+
+### 7. await di Dalam Loop
+
+```dart
+void main() async {
+  var ids = [1, 2, 3, 4, 5];
+
+  // ❌ Sequential — lambat, satu per satu
+  for (var id in ids) {
+    var data = await fetchById(id);
+    print(data);
+  }
+
+  // ✅ Parallel — lebih cepat kalau independen
+  var semuaData = await Future.wait(ids.map((id) => fetchById(id)));
+  for (var data in semuaData) {
+    print(data);
+  }
+}
+
+Future<String> fetchById(int id) async {
+  await Future.delayed(Duration(seconds: 1));
+  return 'Data $id';
+}
+```
+
+---
+
+## Ringkasan Cepat
+
+| Konsep | Penjelasan |
+|--------|------------|
+| **Future\<T\>** | Nilai yang akan tersedia nanti |
+| **async** | Menandai function sebagai async, return Future |
+| **await** | Menunggu Future selesai sebelum lanjut |
+| **try/catch/finally** | Error handling untuk async |
+| **rethrow** | Tangkap error lalu lempar ulang |
+| **Future.wait** | Jalankan beberapa Future paralel |
+| **Future.delayed** | Future yang selesai setelah durasi tertentu |
+| **.then()** | Chaining callback (alternatif await) |
+| **.catchError()** | Handle error di chain |
+| **.whenComplete()** | Callback yang selalu jalan |
+| **Stream\<T\>** | Data berulang, bukan sekali |
+
+### Kapan Pakai Apa
+
+| Situasi | Solusi |
+|---------|--------|
+| Satu operasi async | `Future<T>` + `async/await` |
+| Beberapa operasi independen | `Future.wait([...])` |
+| Operasi tergantung hasil sebelumnya | Chaining `.then()` atau sequential `await` |
+| Data streaming / event | `Stream<T>` + `await for` |
+| CPU-heavy computation | `Isolate.run()` |
+| UI Flutter menunggu Future | `FutureBuilder` widget |
+
+---
+
+## Apa Selanjutnya?
+
+Async/await adalah skill esensial untuk membuat aplikasi Dart yang responsif dan modern. Kamu sekarang bisa menulis kode non-blocking dengan benar, handle error dengan baik, dan menjalankan task paralel dengan `Future.wait`.
+
+Selanjutnya kamu akan belajar tentang **Generics** — cara membuat fungsi, class, dan collection yang type-safe untuk berbagai tipe data. Ini adalah fondasi untuk menulis kode yang reusable dan aman tipe.
+
+→ Lanjutkan ke **[Generics](/tutorials/dart/generics)**

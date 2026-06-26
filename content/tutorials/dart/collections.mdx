@@ -1,0 +1,789 @@
+---
+title: Collections — List, Set, Map
+description: Pelajari cara menggunakan List, Set, Map, dan operasi collection di Dart — map, where, reduce, fold, spread operator, collection-if/for.
+---
+
+## Pengantar
+
+Di halaman sebelumnya kamu sudah belajar tentang tipe data dasar dan fungsi. Saatnya mendalami **collections** — struktur data yang menyimpan banyak nilai dalam satu variabel. Tanpa collections, kamu bakal harus bikin variabel terpisah untuk setiap data:
+
+```dart
+// Tanpa collection — tidak scalable
+String nama1 = "Alice";
+String nama2 = "Bob";
+String nama3 = "Charlie";
+String nama4 = "Diana";
+// Bayangkan untuk 1000 data...
+```
+
+Dengan collection, semua data itu bisa disimpan rapi dalam satu struktur:
+
+```dart
+List<String> nama = ["Alice", "Bob", "Charlie", "Diana"];
+// Satu variabel, banyak data. Jauh lebih mudah dikelola.
+```
+
+Dart punya tiga collection utama yang wajib kamu kuasai:
+
+| Collection | Karakteristik | Use Case |
+|------------|--------------|----------|
+| **List** | Berurutan (indexed), boleh duplikat | Data berurutan, daftar item |
+| **Set** | Unik, tidak berurutan | Data tanpa duplikat, operasi himpunan |
+| **Map** | Key-value pairs | Data dengan label, lookup cepat |
+
+Selain itu, Dart punya fitur modern seperti **spread operator**, **collection if/for**, dan metode functional seperti `map`, `where`, `reduce` yang bikin kode collection jadi jauh lebih ekspresif. Yuk kita bedah satu-satu.
+
+---
+
+## List
+
+**List** adalah collection paling dasar di Dart. Mirip array di bahasa lain, tapi lebih powerful.
+
+### Membuat List
+
+Ada beberapa cara membuat List:
+
+```dart
+void main() {
+  // Literal list — paling umum
+  List<String> buah = ['apel', 'mangga', 'jeruk'];
+  print(buah); // [apel, mangga, jeruk]
+
+  // Tipe bisa di-infer
+  var hewan = ['kucing', 'anjing', 'ikan'];
+  print(hewan); // [kucing, anjing, ikan]
+
+  // List dengan tipe campuran (pakai dynamic atau Object?)
+  var campuran = <dynamic>[1, 'dua', true, 3.14];
+  print(campuran); // [1, dua, true, 3.14]
+
+  // List kosong
+  List<int> kosong = [];
+  List<String> jugaKosong = List<String>.empty();
+  print('kosong: $kosong, jugaKosong: $jugaKosong');
+
+  // List dengan panjang tetap
+  var tetap = List<int>.filled(5, 0);
+  print(tetap); // [0, 0, 0, 0, 0]
+
+  // List dari generator
+  var generate = List<int>.generate(5, (i) => i * 2);
+  print(generate); // [0, 2, 4, 6, 8]
+}
+```
+
+### Tabel Method List Penting
+
+| Method | Deskripsi | Contoh |
+|--------|-----------|--------|
+| `add(value)` | Tambah satu elemen di akhir | `list.add('baru')` |
+| `addAll(iterable)` | Tambah banyak elemen | `list.addAll(['a','b'])` |
+| `insert(index, value)` | Sisip di posisi tertentu | `list.insert(0, 'awal')` |
+| `remove(value)` | Hapus elemen pertama yang cocok | `list.remove('foo')` |
+| `removeAt(index)` | Hapus berdasarkan index | `list.removeAt(2)` |
+| `removeWhere(test)` | Hapus semua yang memenuhi kondisi | `list.removeWhere((e) => e < 0)` |
+| `contains(value)` | Cek apakah ada | `list.contains('x')` |
+| `indexOf(value)` | Cari index pertama | `list.indexOf('x')` |
+| `sublist(start, [end])` | Ambil potongan list | `list.sublist(1, 3)` |
+
+### Akses dan Modifikasi
+
+```dart
+void main() {
+  var angka = [10, 20, 30, 40, 50];
+
+  // Akses by index
+  print(angka[0]); // 10
+  print(angka[angka.length - 1]); // 50 — elemen terakhir
+
+  // first, last — properti yang lebih readable
+  print(angka.first); // 10
+  print(angka.last); // 50
+
+  // isEmpty, isNotEmpty
+  print(angka.isEmpty); // false
+  print(angka.isNotEmpty); // true
+
+  // Modifikasi elemen
+  angka[2] = 99;
+  print(angka); // [10, 20, 99, 40, 50]
+
+  // Menambah elemen
+  angka.add(60);
+  print(angka); // [10, 20, 99, 40, 50, 60]
+
+  angka.addAll([70, 80]);
+  print(angka); // [10, 20, 99, 40, 50, 60, 70, 80]
+
+  // Menyisip
+  angka.insert(1, 15);
+  print(angka); // [10, 15, 20, 99, 40, 50, 60, 70, 80]
+
+  // Menghapus
+  angka.remove(99);
+  print(angka); // [10, 15, 20, 40, 50, 60, 70, 80]
+
+  angka.removeAt(0);
+  print(angka); // [15, 20, 40, 50, 60, 70, 80]
+
+  angka.removeLast();
+  print(angka); // [15, 20, 40, 50, 60, 70]
+
+  // removeWhere — hapus dengan kondisi
+  angka.removeWhere((e) => e > 50);
+  print(angka); // [15, 20, 40, 50]
+}
+```
+
+### Iterasi List
+
+```dart
+void main() {
+  var nama = ['Alice', 'Bob', 'Charlie'];
+
+  // for loop biasa
+  for (int i = 0; i < nama.length; i++) {
+    print('Index $i: ${nama[i]}');
+  }
+
+  // for-in — lebih idiomatic
+  for (var n in nama) {
+    print('Halo, $n!');
+  }
+
+  // forEach dengan function literal
+  nama.forEach((n) => print('forEach: $n'));
+
+  // forEach dengan named function
+  void sapa(String orang) => print('Salam, $orang!');
+  nama.forEach(sapa);
+}
+```
+
+---
+
+## Spread Operator
+
+Spread operator (`...`) dan null-aware spread (`...?`) adalah fitur yang sangat berguna untuk menggabungkan collection.
+
+```dart
+void main() {
+  var ganjil = [1, 3, 5];
+  var genap = [2, 4, 6];
+
+  // Menggabungkan list
+  var semua = [...ganjil, ...genap];
+  print(semua); // [1, 3, 5, 2, 4, 6]
+
+  // Bisa juga dengan addAll — tapi spread lebih ekspresif
+  var caraLain = [0, ...ganjil, ...genap, 7];
+  print(caraLain); // [0, 1, 3, 5, 2, 4, 6, 7]
+
+  // Null-aware spread — aman walau null
+  List<int>? nullable;
+  var aman = [1, ...?nullable, 3];
+  print(aman); // [1, 3] — tidak error
+
+  // Tanpa null-aware, ini error
+  // var error = [1, ...nullable, 3]; // ERROR!
+
+  // Spread di dalam Set dan Map juga works
+  var setA = {1, 2, 3};
+  var setB = {3, 4, 5};
+  var setGabung = {...setA, ...setB};
+  print(setGabung); // {1, 2, 3, 4, 5} — Set otomatis unik
+}
+```
+
+---
+
+## Collection If & For
+
+Dart mendukung **collection if** dan **collection for** di dalam literal collection. Ini memungkinkan conditional dan looping langsung di dalam kurung siku atau kurung kurawal.
+
+```dart
+void main() {
+  // --- Collection If ---
+  bool includeDessert = true;
+  bool includeMinuman = false;
+
+  var menu = [
+    'Nasi Goreng',
+    'Mie Ayam',
+    if (includeDessert) 'Es Krim',
+    if (includeMinuman) 'Jus Jeruk',
+  ];
+  print(menu); // [Nasi Goreng, Mie Ayam, Es Krim]
+  // 'Jus Jeruk' tidak masuk karena includeMinuman == false
+
+  // Bisa juga dengan else (Dart 3.0+)
+  bool isPremium = true;
+  var diskon = [
+    'Diskon 10%',
+    if (isPremium) 'Diskon 20%' else 'Diskon 5%',
+  ];
+  print(diskon); // [Diskon 10%, Diskon 20%]
+
+  // --- Collection For ---
+  var listAngka = [1, 2, 3];
+  var dikali10 = [
+    for (var a in listAngka) a * 10,
+  ];
+  print(dikali10); // [10, 20, 30]
+
+  // Kombinasi collection for + if di dalamnya
+  var nilai = [85, 60, 92, 45, 78];
+  var lulus = [
+    for (var n in nilai)
+      if (n >= 75) n,
+  ];
+  print(lulus); // [85, 92, 78]
+
+  // Collection for bisa menghasilkan banyak elemen per iterasi
+  var berpasangan = [
+    for (var i = 0; i < 3; i++) i,
+    for (var i = 3; i >= 0; i--) i,
+  ];
+  print(berpasangan); // [0, 1, 2, 3, 2, 1, 0]
+}
+```
+
+Kalau tanpa collection if/for, kode di atas bakal jauh lebih panjang. Bandingkan:
+
+```dart
+// Tanpa collection if
+var menu = ['Nasi Goreng', 'Mie Ayam'];
+if (includeDessert) menu.add('Es Krim');
+if (includeMinuman) menu.add('Jus Jeruk');
+
+// Dengan collection if — lebih deklaratif
+var menu = [
+  'Nasi Goreng',
+  'Mie Ayam',
+  if (includeDessert) 'Es Krim',
+  if (includeMinuman) 'Jus Jeruk',
+];
+```
+
+---
+
+## Set
+
+**Set** adalah collection yang menyimpan nilai unik — tidak ada duplikat. Set tidak punya urutan (unordered), jadi tidak bisa akses via index seperti List.
+
+```dart
+void main() {
+  // Membuat Set
+  Set<String> buahSet = {'apel', 'mangga', 'jeruk'};
+  var hewanSet = <String>{'kucing', 'anjing'};
+
+  // Set dengan duplikat — otomatis di-deduplikasi
+  var denganDuplikat = {1, 2, 2, 3, 1, 3};
+  print(denganDuplikat); // {1, 2, 3}
+  print(denganDuplikat.length); // 3 (bukan 6)
+
+  // Operasi dasar
+  var set = <int>{};
+
+  set.add(1);
+  set.add(2);
+  set.add(1); // diabaikan — sudah ada
+  print(set); // {1, 2}
+
+  set.addAll([3, 4, 5]);
+  print(set); // {1, 2, 3, 4, 5}
+
+  set.remove(3);
+  print(set); // {1, 2, 4, 5}
+
+  // Mengecek anggota
+  print(set.contains(2)); // true
+  print(set.contains(99)); // false
+
+  // containsAll — cek beberapa sekaligus
+  print(set.containsAll({1, 2})); // true
+  print(set.containsAll({1, 99})); // false
+}
+```
+
+### Operasi Himpunan (Set Operations)
+
+Ini adalah kekuatan utama Set — operasi matematis seperti union, intersection, dan difference.
+
+```dart
+void main() {
+  var groupA = {1, 2, 3, 4, 5};
+  var groupB = {4, 5, 6, 7, 8};
+
+  // Union — gabungan kedua set
+  var union = groupA.union(groupB);
+  print('Union: $union'); // {1, 2, 3, 4, 5, 6, 7, 8}
+
+  // Intersection — irisan (yang ada di keduanya)
+  var intersection = groupA.intersection(groupB);
+  print('Intersection: $intersection'); // {4, 5}
+
+  // Difference — yang di A tapi tidak di B
+  var diffAB = groupA.difference(groupB);
+  print('A - B: $diffAB'); // {1, 2, 3}
+
+  // Difference — yang di B tapi tidak di A
+  var diffBA = groupB.difference(groupA);
+  print('B - A: $diffBA'); // {6, 7, 8}
+
+  // Symmetric difference — pakai union dan difference
+  var symDiff = groupA.union(groupB).difference(groupA.intersection(groupB));
+  print('Symmetric: $symDiff'); // {1, 2, 3, 6, 7, 8}
+
+  // toSet() — konversi List ke Set (untuk deduplikasi)
+  var listDenganDuplikat = [1, 2, 2, 3, 3, 3, 4];
+  var unik = listDenganDuplikat.toSet();
+  print(unik); // {1, 2, 3, 4}
+  print(unik.toList()); // [1, 2, 3, 4] — balik ke List
+}
+```
+
+Gunakan Set setiap kali kamu butuh **menghilangkan duplikat** atau **operasi himpunan**. Contoh nyata: filter daftar tag, cek permission overlap, dll.
+
+---
+
+## Map
+
+**Map** menyimpan data sebagai pasangan key-value. Key harus unik, value boleh duplikat.
+
+```dart
+void main() {
+  // Membuat Map — literal
+  Map<String, int> nilai = {
+    'Alice': 90,
+    'Bob': 85,
+    'Charlie': 78,
+  };
+
+  // Type inference
+  var ibukota = <String, String>{
+    'Indonesia': 'Jakarta',
+    'Malaysia': 'Kuala Lumpur',
+    'Singapura': 'Singapura',
+  };
+
+  // Map kosong
+  Map<String, dynamic> profil = {};
+  var config = <String, String>{};
+
+  // Akses value
+  print(nilai['Alice']); // 90
+  print(nilai['Unknown']); // null — key tidak ada return null
+
+  // Modifikasi — assign langsung
+  nilai['Alice'] = 95; // update
+  nilai['Diana'] = 88; // tambah baru
+  print(nilai);
+
+  // Hapus
+  nilai.remove('Charlie');
+  print(nilai); // {Alice: 95, Bob: 85, Diana: 88}
+
+  // Cek key
+  print(nilai.containsKey('Bob')); // true
+  print(nilai.containsKey('Eve')); // false
+
+  // containsValue — jarang dipakai karena O(n)
+  print(nilai.containsValue(95)); // true
+}
+```
+
+### Iterasi Map
+
+```dart
+void main() {
+  var map = {'a': 1, 'b': 2, 'c': 3};
+
+  // Iterasi entries (key + value)
+  for (var entry in map.entries) {
+    print('${entry.key} -> ${entry.value}');
+  }
+
+  // Iterasi keys
+  for (var key in map.keys) {
+    print('Key: $key');
+  }
+
+  // Iterasi values
+  for (var value in map.values) {
+    print('Value: $value');
+  }
+
+  // forEach dengan callback
+  map.forEach((key, value) {
+    print('forEach: $key = $value');
+  });
+
+  // Map entries diubah jadi List
+  var entriesList = map.entries.toList();
+  print(entriesList); // [MapEntry(a: 1), MapEntry(b: 2), MapEntry(c: 3)]
+}
+```
+
+### Method Penting Map
+
+```dart
+void main() {
+  var data = <String, dynamic>{};
+
+  // putIfAbsent — set value kalau key belum ada
+  data.putIfAbsent('nama', () => 'Anonim');
+  print(data); // {nama: Anonim}
+  data.putIfAbsent('nama', () => 'Tidak Akan Terpakai');
+  print(data); // {nama: Anonim} — tidak berubah
+
+  // update — modifikasi value yang sudah ada
+  var skor = {'Alice': 80, 'Bob': 90};
+  skor.update('Alice', (v) => v + 10);
+  print(skor); // {Alice: 90, Bob: 90}
+  // Kalau key belum ada, pakai update dengan ifAbsent
+  skor.update('Charlie', (v) => 100, ifAbsent: () => 85);
+  print(skor); // {Alice: 90, Bob: 90, Charlie: 85}
+
+  // addAll — gabungkan map lain
+  var tambahan = {'Diana': 75, 'Eve': 95};
+  skor.addAll(tambahan);
+  print(skor);
+
+  // Map.fromEntries — balikin iterable entries ke map
+  var entries = [MapEntry('x', 10), MapEntry('y', 20)];
+  var mapBaru = Map.fromEntries(entries);
+  print(mapBaru); // {x: 10, y: 20}
+}
+```
+
+---
+
+## Transformasi Collection
+
+Inilah bagian paling powerful: metode functional untuk mentransformasi collection. Pola dasarnya selalu sama — collection punya metode yang menerima fungsi callback dan mengembalikan hasil transformasi.
+
+### map — Transformasi Setiap Elemen
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+
+  // Setiap elemen dikali 2
+  var dikali2 = angka.map((e) => e * 2);
+  print(dikali2); // (2, 4, 6, 8, 10) — Iterable, belum List!
+  print(dikali2.toList()); // [2, 4, 6, 8, 10]
+
+  // map dengan index (pakai asMap + map)
+  var denganIndex = angka.asMap().entries.map((entry) {
+    return 'Index ${entry.key} = ${entry.value}';
+  }).toList();
+  print(denganIndex);
+
+  // Map<String, int> ke List<String>
+  var nilai = {'Alice': 90, 'Bob': 85};
+  var laporan = nilai.entries.map((e) => '${e.key}: ${e.value}').toList();
+  print(laporan); // [Alice: 90, Bob: 85]
+}
+```
+
+### where — Filtering
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  // Filter bilangan genap
+  var genap = angka.where((e) => e.isEven);
+  print(genap); // (2, 4, 6, 8, 10)
+  print(genap.toList()); // [2, 4, 6, 8, 10]
+
+  // Filter dari Map
+  var nilai = {'Alice': 90, 'Bob': 55, 'Charlie': 78, 'Diana': 45};
+  var lulus = nilai.where((value) => value >= 75);
+  print(lulus.toList()); // [90, 78] — hanya values
+  // Kalau butuh key juga, filter entries dulu
+  var siswaLulus = nilai.entries.where((e) => e.value >= 75).map((e) => e.key).toList();
+  print(siswaLulus); // [Alice, Charlie]
+}
+```
+
+### reduce — Agregasi (Satu Tipe)
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+
+  // Jumlahkan semua elemen
+  var total = angka.reduce((prev, curr) => prev + curr);
+  print(total); // 15
+
+  // Manual: 1 + 2 = 3, 3 + 3 = 6, 6 + 4 = 10, 10 + 5 = 15
+
+  // Mencari nilai terbesar
+  var terbesar = [3, 7, 2, 9, 5].reduce((a, b) => a > b ? a : b);
+  print(terbesar); // 9
+
+  // CATATAN: reduce ERROR kalau collection kosong!
+  // var kosong = <int>[].reduce((a, b) => a + b); // Runtime error!
+}
+```
+
+### fold — Agregasi (Boleh Beda Tipe)
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+
+  // Jumlah — mirip reduce, tapi aman untuk empty list
+  var total = angka.fold<int>(0, (prev, curr) => prev + curr);
+  print(total); // 15
+
+  // fold aman untuk empty list
+  var kosong = <int>[].fold<int>(0, (prev, curr) => prev + curr);
+  print(kosong); // 0 — tidak error
+
+  // fold dengan tipe berbeda dari elemen
+  var berdempet = angka.fold<String>('', (prev, curr) => '$prev, $curr');
+  print(berdempet); // , 1, 2, 3, 4, 5 — agak jelek
+  // Lebih rapi:
+  var rapi = angka.fold<String>('', (prev, curr) => prev.isEmpty ? '$curr' : '$prev, $curr');
+  print(rapi); // 1, 2, 3, 4, 5
+
+  // fold untuk menggabungkan jadi Map
+  var listNama = ['Alice', 'Bob', 'Charlie'];
+  var mapNama = listNama.fold<Map<int, String>>({}, (map, nama) {
+    map[map.length] = nama;
+    return map;
+  });
+  print(mapNama); // {0: Alice, 1: Bob, 2: Charlie}
+}
+```
+
+| Fitur | reduce | fold |
+|-------|--------|------|
+| Tipe return | Sama dengan elemen | Boleh berbeda |
+| Empty collection | Error | Return initial value |
+| Parameter awal | Tidak ada | Ada initial value |
+| Contoh | `list.reduce((a,b) => a+b)` | `list.fold(0, (a,b) => a+b)` |
+
+### any, every, firstWhere
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+  var kosong = <int>[];
+
+  // any — apakah ada yang memenuhi?
+  print(angka.any((e) => e > 3)); // true
+  print(angka.any((e) => e > 99)); // false
+  print(kosong.any((e) => true)); // false — empty selalu false
+
+  // every — apakah semua memenuhi?
+  print(angka.every((e) => e > 0)); // true
+  print(angka.every((e) => e.isEven)); // false — ada ganjil
+  print(kosong.every((e) => false)); // true — empty selalu true!
+
+  // firstWhere — cari elemen pertama yang match
+  print(angka.firstWhere((e) => e > 3)); // 4
+
+  // firstWhere with orElse — aman kalau tidak ketemu
+  var hasil = angka.firstWhere(
+    (e) => e > 99,
+    orElse: () => -1,
+  );
+  print(hasil); // -1 — fallback
+
+  // Tanpa orElse, firstWhere throw StateError kalau tidak ketemu!
+  // var err = angka.firstWhere((e) => e > 99); // ERROR!
+}
+```
+
+### sort, take, skip
+
+```dart
+void main() {
+  // --- sort ---
+  var angka = [3, 1, 4, 1, 5, 9, 2];
+  angka.sort();
+  print(angka); // [1, 1, 2, 3, 4, 5, 9]
+
+  // sort descending — pakai Comparator
+  angka.sort((a, b) => b.compareTo(a));
+  print(angka); // [9, 5, 4, 3, 2, 1, 1]
+
+  // sort custom object
+  var orang = [
+    {'nama': 'Alice', 'umur': 30},
+    {'nama': 'Bob', 'umur': 25},
+    {'nama': 'Charlie', 'umur': 35},
+  ];
+  orang.sort((a, b) => a['umur']!.compareTo(b['umur']!));
+  print(orang); // [Bob 25, Alice 30, Charlie 35]
+
+  // --- take ---
+  var list = [1, 2, 3, 4, 5, 6];
+  print(list.take(3).toList()); // [1, 2, 3] — ambil N pertama
+  print(list.take(100).toList()); // [1, 2, 3, 4, 5, 6] — kalau > length, aman
+
+  // --- skip ---
+  print(list.skip(3).toList()); // [4, 5, 6] — lewati N pertama
+  print(list.skip(2).take(2).toList()); // [3, 4] — skip 2, ambil 2
+
+  // --- whereType ---
+  var campuran = [1, 'dua', 3, 'empat', 5];
+  print(campuran.whereType<int>().toList()); // [1, 3, 5]
+  print(campuran.whereType<String>().toList()); // [dua, empat]
+}
+```
+
+---
+
+## Common Mistakes
+
+### 1. map() Return Iterable, Bukan List
+
+Ini salah satu mistake paling sering. `.map()` mengembalikan `Iterable`, bukan `List`.
+
+```dart
+void main() {
+  var angka = [1, 2, 3];
+
+  // ❌ Salah — hasilnya Iterable, mungkin tidak punya method List
+  var hasilSalah = angka.map((e) => e * 2);
+  // print(hasilSalah[0]); // ERROR! Iterable tidak punya []
+
+  // ✅ Benar — konversi ke List dulu
+  var hasilBenar = angka.map((e) => e * 2).toList();
+  print(hasilBenar[0]); // 2
+}
+```
+
+Iterable seperti `map`, `where`, `take`, `skip` bersifat **lazy** — mereka tidak memproses data sampai kamu melakukan iterasi. `.toList()` memaksa eksekusi.
+
+### 2. Modifikasi Collection Saat Iterasi
+
+```dart
+void main() {
+  var list = [1, 2, 3, 4, 5];
+
+  // ❌ Salah — ConcurrentModificationError!
+  // for (var e in list) {
+  //   if (e.isEven) list.remove(e);
+  // }
+
+  // ✅ Benar — pakai removeWhere
+  list.removeWhere((e) => e.isEven);
+  print(list); // [1, 3, 5]
+
+  // ✅ Atau filter dulu, baru assign
+  var angka = [1, 2, 3, 4, 5];
+  angka = angka.where((e) => e.isOdd).toList();
+  print(angka); // [1, 3, 5]
+}
+```
+
+### 3. fold dengan Tipe Berbeda — Inisialisasi Wajib
+
+```dart
+void main() {
+  var angka = [1, 2, 3, 4, 5];
+
+  // ❌ Ini tidak akan compile — reduce butuh tipe sama
+  // var gabung = angka.reduce((a, b) => '$a, $b'); // ERROR: String vs int
+
+  // ✅ fold bisa handle tipe berbeda
+  var gabung = angka.fold<String>('', (prev, curr) => '$prev, $curr');
+  print(gabung);
+}
+```
+
+### 4. List.from vs Spread vs .toList()
+
+```dart
+void main() {
+  var asli = [1, 2, 3];
+
+  // Semua ini bikin salinan (copy), bukan referensi
+  var salin1 = List.from(asli);
+  var salin2 = [...asli];
+  var salin3 = asli.toList();
+
+  asli[0] = 99;
+  print(asli); // [99, 2, 3] — asli berubah
+  print(salin1); // [1, 2, 3] — salinan tidak terpengaruh
+
+  // Tapi HATI-HATI: List.from itu shallow copy untuk nested list!
+  var nested = [[1, 2], [3, 4]];
+  var salinNested = List.from(nested);
+  nested[0][0] = 99;
+  print(salinNested); // [[99, 2], [3, 4]] — ikut berubah!
+  // Kalau perlu deep copy, butuh manual atau package.
+}
+```
+
+### 5. Set vs List — contain Performa
+
+```dart
+void main() {
+  // Set.contains() JAUH lebih cepat dari List.contains()
+  var listBesar = List.generate(10000, (i) => i);
+  var setBesar = Set.from(listBesar);
+
+  // List.contains — O(n) linear
+  // Set.contains — O(1) konstan (hash-based)
+
+  var start = DateTime.now();
+  print(listBesar.contains(9999)); // true — lambat
+  var listDurasi = DateTime.now().difference(start);
+
+  start = DateTime.now();
+  print(setBesar.contains(9999)); // true — cepat
+  var setDurasi = DateTime.now().difference(start);
+
+  print('List: ${listDurasi.inMicroseconds}us');
+  print('Set: ${setDurasi.inMicroseconds}us');
+  // Perbedaan dramatis untuk data besar!
+}
+```
+
+### 6. Lupa bahwa List.add Return void
+
+```dart
+void main() {
+  // ❌ Salah — add return void, bukan list
+  // var hasil = [1, 2].add(3); // hasil = null
+
+  // ✅ Benar
+  var list = [1, 2];
+  list.add(3);
+  print(list); // [1, 2, 3]
+}
+```
+
+---
+
+## Ringkasan Cepat
+
+| Collection | Order | Duplikat | Akses |
+|------------|-------|----------|-------|
+| List | Ya | Boleh | Index `[i]` |
+| Set | Tidak | Tidak | `.contains()` — O(1) |
+| Map | Tidak (entries) | Key: tidak, Value: boleh | Key `[k]` |
+
+| Operasi | Fungsi | Return |
+|---------|--------|--------|
+| Transform | `map()` | Iterable |
+| Filter | `where()` | Iterable |
+| Agregasi | `reduce()` | Sama tipe |
+| Agregasi | `fold()` | Boleh beda tipe |
+| Cek | `any()`, `every()` | bool |
+| Ambil | `take()`, `skip()` | Iterable |
+
+---
+
+## Apa Selanjutnya?
+
+Kamu sudah menguasai collection Dart — bagaimana menyimpan, mengakses, dan mentransformasi data. Ini adalah fondasi yang sangat penting. Selanjutnya kamu akan belajar tentang **Async & Await**, karena di dunia nyata aplikasi hampir selalu butuh operasi asynchronous: mengambil data dari internet, membaca file, atau menunggu timer.
+
+→ Lanjutkan ke **[Async & Await](/tutorials/dart/async-await)**
